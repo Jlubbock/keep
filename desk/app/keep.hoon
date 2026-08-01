@@ -50,8 +50,8 @@
 ::  a %keen for a revision that has not been grown yet parks in ames and fires
 ::  when it is. the outstanding keen IS the subscription: durable across
 ::  restarts, one @ud of state, nothing to negotiate. backfill and tailing are
-::  the same code path — start at 0, existing revisions answer from cache, the
-::  first one that does not parks, and you are subscribed.
+::  the same code path — start at revision 1, existing revisions answer from
+::  cache, the first one that does not parks, and you are subscribed.
 ::
 ::  ames carries exactly two things, both once per relationship and never per
 ::  post: %announce (are you running %keep) and %invite (here is your address
@@ -215,7 +215,7 @@
       =/  =item:keep     [hed page.act]
       =/  =id            (sham item)
       =/  spur=path      (item-spur:hc id)
-      =/  =entry         [our.bowl (welp (base:hc 0) spur)]
+      =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
       =^  cards  lists   (fan-out:hc entry ~(tap in to.act))
       =/  grows=(list card)
         :~  [%pass /grow %grow (welp spur /head) noun+hed]
@@ -312,7 +312,7 @@
     ::  ---- following ---------------------------------------------------------
         %sub
       =/  f=feed  [who.act /index]
-      =/  at=@ud  (~(gut by subs) f 0)
+      =/  at=@ud  (~(gut by subs) f first)
       =/  ss      (~(put by subs) f at)
       :_  this(subs ss)
       :-  (tail:hc f at)
@@ -347,9 +347,9 @@
         %invite
       =/  f=feed  [src.bowl path.gos]
       ?:  (~(has by subs) f)  `this
-      =/  ss  (~(put by subs) f 0)
+      =/  ss  (~(put by subs) f first)
       :_  this(subs ss)
-      :-  (tail:hc f 0)
+      :-  (tail:hc f first)
       (give:hc (peers-of:hc ss off))
     ::
     ::  someone just installed %keep. we ack by not crashing, which is what
@@ -359,10 +359,10 @@
       =/  f=feed  [src.bowl /index]
       ?.  &((~(has in targets:hc) src.bowl) !(~(has by subs) f))
         `this
-      =/  ss  (~(put by subs) f 0)
+      =/  ss  (~(put by subs) f first)
       =/  oo  (~(del in off) src.bowl)
       :_  this(subs ss, off oo)
-      :-  (tail:hc f 0)
+      :-  (tail:hc f first)
       (give:hc (peers-of:hc ss oo))
     ==
   ==
@@ -404,9 +404,9 @@
       :_  this(off oo)
       (give:hc (peers-of:hc subs oo))
     =/  f=feed  [who /index]
-    =/  ss      (~(put by subs) f 0)
+    =/  ss      (~(put by subs) f first)
     :_  this(subs ss)
-    :-  (tail:hc f 0)
+    :-  (tail:hc f first)
     (give:hc (peers-of:hc ss off))
   ::
   ::  a poke we sent ourselves on behalf of a click. a nack is a refusal the
@@ -442,25 +442,28 @@
   ?:  ?=([%eyre %bound *] sign-arvo)
     ~?  !accepted.sign-arvo  %keep-eyre-rejected-binding
     `this
-  ?.  ?=([%ames %tune *] sign-arvo)  (on-arvo:def wire sign-arvo)
-  =*  roar  roar.sign-arvo
+  ::  a keen comes back as %sage on this kernel, not %tune. the payload is
+  ::  the grown page itself — q.sage — so the value is q.q.sage, one level
+  ::  shallower than a roar's.
+  ?.  ?=([%ames %sage *] sign-arvo)  (on-arvo:def wire sign-arvo)
+  =/  =sage:mess:ames  sage.sign-arvo
   ?+    wire  `this
   ::
   ::  ---- a head --------------------------------------------------------------
   ::  the eager half. tens of bytes, and everything a shelf of titles needs.
       [%head @ *]
-    ?:  |(?=(~ roar) ?=(~ q.dat.u.roar))  `this
+    ?:  ?=(~ q.sage)  `this
     =/  e=entry        [(slav %p i.t.wire) t.t.wire]
-    =/  hed=head:keep  ;;(head:keep q.u.q.dat.u.roar)
+    =/  hed=head:keep  ;;(head:keep q.q.sage)
     :_  this(heads (~(put by heads) e hed))
     (give:hc [%head e hed])
   ::
   ::  ---- a body --------------------------------------------------------------
   ::  only ever because someone opened it.
       [%body @ *]
-    ?:  |(?=(~ roar) ?=(~ q.dat.u.roar))  `this
+    ?:  ?=(~ q.sage)  `this
     =/  e=entry     [(slav %p i.t.wire) t.t.wire]
-    =/  bod=page    ;;(page q.u.q.dat.u.roar)
+    =/  bod=page    ;;(page q.q.sage)
     :_  this(seen (~(put by seen) e bod))
     (give:hc [%body e bod])
   ::
@@ -470,15 +473,16 @@
       [%feed @ @ *]
     =/  at=@ud    (slav %ud i.t.wire)
     =/  f=feed    [(slav %p i.t.t.wire) t.t.t.wire]
-    ::  outer ~: ames gave up, or we yawned. %sub resumes from this cursor.
-    ?~  roar  `this
-    ::  inner ~: a signed proof of absence. that revision was tombstoned, so
-    ::  step over it rather than reading it as the end of the feed.
-    ?~  q.dat.u.roar
+    ::  no value. a roar distinguished "ames gave up" from a signed proof of
+    ::  absence; %sage collapses both into one empty q, so we cannot tell a
+    ::  tombstone from a failure. step over it: stalling on a tombstoned
+    ::  revision would be silent and permanent, where losing one revision to
+    ::  a transient failure is at least visible as a gap.
+    ?:  ?=(~ q.sage)
       :_  this(subs (~(put by subs) f +(at)))
       ~[(tail:hc f +(at))]
     =/  new=(list entry)
-      (skip ;;((list entry) q.u.q.dat.u.roar) ~(has in refs))
+      (skip ;;((list entry) q.q.sage) ~(has in refs))
     =/  fresh=(set entry)  (sy new)
     =/  fold=(list [via=feed =entry])
       (flop (turn new |=(e=entry [f e])))
@@ -550,6 +554,12 @@
 ::
 ::  concatenate these with welp, never weld: weld homogenizes on its first
 ::  element and would demand a (list %g).
+::
+::  gall numbers the first %grow at a path as revision 1, not 0 — revision
+::  0 is unbound, and an unbound remote scry path returns silence rather
+::  than a refusal, so keening it parks forever. every cursor starts here.
+::
+++  first  1
 ::
 ++  base
   |=  rev=@ud
@@ -738,7 +748,7 @@
     |-  ^-  (list row:ui)
     ?~  ls  ~
     ?~  got=(~(get by ps) q.i.ls)  $(ls t.ls)
-    =/  e=entry  [our.bowl (welp (base 0) (item-spur q.i.ls))]
+    =/  e=entry  [our.bowl (welp (base first) (item-spur q.i.ls))]
     [[our.bowl e `head.u.got %.y %.n `p.i.ls] $(ls t.ls)]
   (by-date rs)
 ::
@@ -864,7 +874,7 @@
   =/  mine=(list row:ui)
     |-  ^-  (list row:ui)
     ?~  ps  ~
-    =/  e=entry  [our.bowl (welp (base 0) (item-spur p.i.ps))]
+    =/  e=entry  [our.bowl (welp (base first) (item-spur p.i.ps))]
     [[our.bowl e `head.q.i.ps %.y %.n (site-of e)] $(ps t.ps)]
   =/  theirs=(list row:ui)
     =/  es=(list entry)  ~(tap in kept-entries)
@@ -959,7 +969,7 @@
   ::  segment or eyre reads its tail as a file extension.
       [%keep %read @ @ ~]
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
-    =/  e=entry  [u.who (welp (base 0) /item/[i.t.t.seg])]
+    =/  e=entry  [u.who (welp (base first) /item/[i.t.t.seg])]
     =/  bod=(unit page)  (body-of e)
     %+  weld
       ?^  bod  ~
@@ -1050,7 +1060,7 @@
   ::
   ?:  =('repost' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
-    =/  e=entry  [u.who (welp (base 0) /item/[(arg q 'id')])]
+    =/  e=entry  [u.who (welp (base first) /item/[(arg q 'id')])]
     (self [%keep e (sy ~[%public])])
   ::
   ::  the one place a click sends a packet to a stranger, and it is the only
