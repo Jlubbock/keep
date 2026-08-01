@@ -78,8 +78,22 @@
       log=(list entry)                 ::  what we have grown here, newest last
   ==
 ::
++$  versioned-state  $%(state-0 state-1)
+::
 +$  state-0
   $:  %0
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+  ==
+::
++$  state-1
+  $:  %1
       ::  ours
       posts=(map id item:keep)
       lists=(map lyst roster)
@@ -95,11 +109,15 @@
                                        ::  sit at permanent addresses, so
                                        ::  anything cold can be dropped.
       off=(set ship)                   ::  ships confirmed not running %keep
+      ::  the clearnet side: url path -> the post published there. eyre holds
+      ::  the rendered bytes; this is only what we need to know a slug is
+      ::  taken and to show an author their own link.
+      sites=(map @t id)
   ==
 --
 ::
 %-  agent:dbug
-=|  state-0
+=|  state-1
 =*  state  -
 ^-  agent:gall
 =<
@@ -117,16 +135,41 @@
 ++  on-init
   ^-  (quip card _this)
   :_  this
-  :+  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
-    [%pass /pals %agent [our.bowl %pals] %watch /targets]
-  (turn (unreached:hc known:hc) announce:hc)
+  ::  the cast matters: weld homogenizes on its first element, and a bare
+  ::  list of two differently-shaped cards would demand a list of the first.
+  =/  boot=(list card)
+    :~  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
+        [%pass /pals %agent [our.bowl %pals] %watch /targets]
+        (index-card:hc ~ ~)
+    ==
+  ;:  weld
+    boot
+    assets:hc
+    (turn (unreached:hc known:hc) announce:hc)
+  ==
 ::
 ++  on-save   !>(state)
 ++  on-load
   |=  =vase
   ^-  (quip card _this)
-  :_  this(state !<(state-0 vase))
-  ~[[%pass /bind %arvo %e %connect [~ /keep] dap.bowl]]
+  =/  old  !<(versioned-state vase)
+  =/  new=state-1
+    ?-  -.old
+      %1  old
+    ::
+        %0
+      :*  %1
+          posts.old  lists.old  subs.old  wall.old
+          refs.old   heads.old  seen.old  off.old
+          ~
+      ==
+    ==
+  :_  this(state new)
+  ::  the index is rebuilt here as well as on publish, so it exists from
+  ::  install rather than only after the first post.
+  :+  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
+    (index-card:hc sites.new posts.new)
+  assets:hc
 ::
 ++  on-peek
   |=  =path
@@ -178,8 +221,24 @@
         :~  [%pass /grow %grow (welp spur /head) noun+hed]
             [%pass /grow %grow (welp spur /body) noun+page.act]
         ==
-      :_  this(posts (~(put by posts) id item))
-      :(weld grows cards (give:hc [%posted id entry]))
+      ::  and, if it is public, a page on the open web and a fresh index
+      =/  new-posts  (~(put by posts) id item)
+      =/  url=@t
+        ?.  (~(has in to.act) %public)  ''
+        (site-path:hc title.act)
+      ::  id:keep, not id — `=/ =id` above bound it as a face, so the bare
+      ::  mold is shadowed for the rest of this branch.
+      =/  new-sites=(map @t id:keep)
+        ?:(=('' url) sites (~(put by sites) url id))
+      =/  web=(list card)
+        ?:  =('' url)  ~
+        =/  art=card
+          %+  cache:hc  url
+          %-  manx-response:gen:srv
+          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url] page.act)
+        ~[art (index-card:hc new-sites new-posts)]
+      :_  this(posts new-posts, sites new-sites)
+      :(weld grows cards web (give:hc [%posted id entry]))
     ::
     ::  syndicate someone else's pointer. same operation, no body moves — our
     ::  readers will resolve it at the ship the pointer names.
@@ -598,11 +657,120 @@
   :^  %pass  [%body (scot %p ship.e) path.e]  %keen
   [%.n ship.e (welp path.e /body)]
 ::
+::  ---- clearnet --------------------------------------------------------------
+::  a public post is rendered once, at publish, and handed to eyre with its
+::  auth flag off. eyre serves those bytes to anyone who has the link and
+::  never wakes this agent to do it. nothing here is a route.
+::
+::  only %public reaches clearnet. a post to a private list has no url, which
+::  is the same gate as everything else in this agent: who gets the pointer.
+::
+++  cache
+  |=  [url=@t pay=simple-payload:http]
+  ^-  card
+  [%pass /eyre/cache %arvo %e %set-response url `[%.n %payload pay]]
+::
+::  these are the same urls the private app already references. caching them
+::  unauthenticated means one copy serves both, and the agent stops being
+::  woken for its own stylesheet.
+::
+++  assets
+  ^-  (list card)
+  :~  (cache '/keep/style.css' (css-response:gen:srv (as-octs:mimes:html style-css)))
+      (cache '/keep/app.js' (js-response:gen:srv (as-octs:mimes:html app-js)))
+  ==
+::
+::  a cached url shadows the %connect binding, so a slug that collides with
+::  an app route would take it over. the index is reserved for the same
+::  reason: it is a page, not a post.
+::
+++  reserved
+  ^-  (set @t)
+  %-  sy
+  :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
+      '/keep/ship'   '/keep/style.css'  '/keep/app.js'
+  ==
+::
+::  the title, lowercased, everything else collapsed to one hyphen. the
+::  agent is allowed to touch a title — it is asserted metadata, not prose.
+::
+++  slugify
+  |=  t=@t
+  ^-  @t
+  =/  cs=tape  (trip t)
+  =|  acc=tape                         ::  reversed
+  =/  gap=?  %.y                       ::  suppress leading hyphens
+  |-  ^-  @t
+  ?~  cs
+    =/  s=tape  (flop ?:(?&(?=(^ acc) =('-' i.acc)) t.acc acc))
+    ?~(s 'untitled' (crip s))
+  =/  c=@tD  i.cs
+  =/  low=@tD  ?:(&((gte c 'A') (lte c 'Z')) (add c 32) c)
+  ?:  ?|  &((gte low 'a') (lte low 'z'))
+          &((gte low '0') (lte low '9'))
+      ==
+    $(cs t.cs, acc [low acc], gap %.n)
+  ?:  gap  $(cs t.cs)
+  $(cs t.cs, acc ['-' acc], gap %.y)
+::
+++  site-path
+  |=  tit=(unit @t)
+  ^-  @t
+  =/  base=tape  (trip ?~(tit 'untitled' (slugify u.tit)))
+  =|  n=@ud
+  |-  ^-  @t
+  =/  try=@t
+    ?:  =(0 n)  (crip "/keep/{base}")
+    (crip "/keep/{base}-{(a-co:co n)}")
+  ?.  |((~(has by sites) try) (~(has in reserved) try))  try
+  $(n +(n))
+::
+::  the index, newest first, built from whatever has a url. it is rebuilt
+::  whole on every publish — it is a list of titles, and deltas would be
+::  noise. both maps are passed in because at publish time state holds
+::  neither the new post nor its url yet.
+::
+++  public-rows
+  |=  [ss=(map @t id) ps=(map id item:keep)]
+  ^-  (list row:ui)
+  =/  ls=(list [p=@t q=id])  ~(tap by ss)
+  =/  rs=(list row:ui)
+    |-  ^-  (list row:ui)
+    ?~  ls  ~
+    ?~  got=(~(get by ps) q.i.ls)  $(ls t.ls)
+    =/  e=entry  [our.bowl (welp (base 0) (item-spur q.i.ls))]
+    [[our.bowl e `head.u.got %.y %.n `p.i.ls] $(ls t.ls)]
+  (by-date rs)
+::
+++  index-card
+  |=  [ss=(map @t id) ps=(map id item:keep)]
+  ^-  card
+  %+  cache  '/keep/index'
+  (manx-response:gen:srv (public-index:vw-bare (public-rows ss ps)))
+::
+++  site-of
+  |=  e=entry
+  ^-  (unit @t)
+  ?.  =(our.bowl ship.e)  ~
+  ?~  i=(slaw %uv (last-of path.e))  ~
+  =/  ls=(list [p=@t q=id])  ~(tap by sites)
+  |-  ^-  (unit @t)
+  ?~  ls  ~
+  ?:  =(u.i q.i.ls)  `p.i.ls
+  $(ls t.ls)
+::
 ::  ---- the interface ---------------------------------------------------------
 ::  a projection of state, flat, with the joins done. the ui library gets
 ::  this and nothing else — no bowl, no cards, no state.
 ::
 ++  vw  ~(. ui view-now)
+::
+::  for rendering outside a request. +view-now scries %pals to build the
+::  sidebar, and a publish must not depend on another agent being up — a
+::  failed scry would nack the poke and lose the post. the clearnet page
+::  has no sidebar, so it needs none of it.
+::
+++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~])
 ::
 ++  view-now
   ^-  view:ui
@@ -665,7 +833,7 @@
 ++  row-of
   |=  [via=ship e=entry]
   ^-  row:ui
-  [via e (head-of e) (kept e) (from-public e)]
+  [via e (head-of e) (kept e) (from-public e) (site-of e)]
 ::
 ++  feed-rows
   ^-  (list row:ui)
@@ -697,7 +865,7 @@
     |-  ^-  (list row:ui)
     ?~  ps  ~
     =/  e=entry  [our.bowl (welp (base 0) (item-spur p.i.ps))]
-    [[our.bowl e `head.q.i.ps %.y %.n] $(ps t.ps)]
+    [[our.bowl e `head.q.i.ps %.y %.n (site-of e)] $(ps t.ps)]
   =/  theirs=(list row:ui)
     =/  es=(list entry)  ~(tap in kept-entries)
     |-  ^-  (list row:ui)

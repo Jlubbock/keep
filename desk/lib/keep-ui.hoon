@@ -21,6 +21,7 @@
       hed=(unit head:keep)
       kept=?                             ::  have we syndicated it
       pub=?                              ::  did it reach us publicly
+      site=(unit @t)                     ::  its url on the open web, if ours
   ==
 ::
 +$  view
@@ -274,12 +275,88 @@
       ;span.when: {?~(hed.r "" (when wen.u.hed.r))}
       ;+  %^  repost-control  r  (read-url entry.r)
           ?:(kept.r "↻ reposted" "↻ repost")
+      ::  the shareable link, for our own public posts. anyone can open it,
+      ::  which is the point, so it is shown plainly rather than announced.
+      ;*  ?~  site.r  ~
+          :_  ~
+          ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
     ==
     ;*  ?~  bod  ~
         :_  ~
         ;div(id "k-src", hidden "", data-mark "{(trip p.u.bod)}"): {?:(?=(@ q.u.bod) (trip q.u.bod) "")}
     ;div(id "k-body", class "k-body")
       ;+  nowt
+    ==
+  ==
+::
+::  the clearnet page. no sidebar, no nav, no chrome — a visitor came for one
+::  article and has no account here. rendered once at publish and handed to
+::  eyre, so this never runs on a request.
+::
+++  public-page
+  |=  [r=row bod=page]
+  ^-  manx
+  ;html
+    ;head
+      ;title: {(titled hed.r)}
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;link(rel "preconnect", href "https://fonts.googleapis.com");
+      ;link(rel "stylesheet", href "https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap");
+      ;link(rel "stylesheet", href "/keep/style.css");
+      ;script(src "/keep/app.js", defer "")
+        ;+  nowt
+      ==
+    ==
+    ;body
+      ;main.k-solo
+        ;article.k-read
+          ;a(href "/keep/index", class "k-back"): ←
+          ;h1.k-art-title: {(titled hed.r)}
+          ;div.k-meta
+            ;span: {(pp ship.entry.r)}
+            ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
+          ==
+          ;div(id "k-src", hidden "", data-mark "{(trip p.bod)}"): {?:(?=(@ q.bod) (trip q.bod) "")}
+          ;div(id "k-body", class "k-body")
+            ;+  nowt
+          ==
+        ==
+      ==
+    ==
+  ==
+::
+::  the clearnet index: every post that has a url, newest first. cached at
+::  /keep/index and rebuilt on each publish, so it never runs on a request.
+::
+++  public-index
+  |=  rows=(list row)
+  ^-  manx
+  ;html
+    ;head
+      ;title: {(pp our.v)}
+      ;meta(charset "utf-8");
+      ;meta(name "viewport", content "width=device-width, initial-scale=1");
+      ;link(rel "preconnect", href "https://fonts.googleapis.com");
+      ;link(rel "stylesheet", href "https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap");
+      ;link(rel "stylesheet", href "/keep/style.css");
+    ==
+    ;body
+      ;main.k-solo
+        ;div.k-col
+          ;div.k-index-head: {(pp our.v)}
+          ;div.k-rows
+            ;*  %+  turn  rows
+                |=  r=row
+                ;div.k-row
+                  ;div.k-row-in
+                    ;a(href "{?~(site.r "" (trip u.site.r))}", class "k-title"): {(titled hed.r)}
+                    ;div.k-date: {?~(hed.r "" (day wen.u.hed.r))}
+                  ==
+                ==
+          ==
+        ==
+      ==
     ==
   ==
 ::

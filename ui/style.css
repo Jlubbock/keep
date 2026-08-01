@@ -136,6 +136,24 @@ button.k-link {
 .k-meta .re.on { color: #171614; }
 .k-meta a:hover, .k-meta button:hover { color: #171614; }
 
+.k-index-head {
+  font-family: 'IBM Plex Mono', monospace; font-size: 17px; color: #171614;
+  padding-bottom: 22px; border-bottom: 1px solid #e8e3d9; margin-bottom: 4px;
+}
+.k-date {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  color: #c3bcae; white-space: nowrap;
+}
+.k-site { color: #b3ac9f; }
+.k-site:hover { color: #171614; }
+
+/* the clearnet page: no sidebar, so the column centres in the viewport */
+.k-solo {
+  padding: 64px 24px 120px; background: #fbfaf8; color: #171614;
+  font-family: Spectral, Georgia, serif; -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
 .k-body {
   font-size: 19px; line-height: 1.68; font-weight: 400; color: #221f1b;
   text-wrap: pretty;
