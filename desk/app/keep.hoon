@@ -833,7 +833,7 @@
   ^-  view:ui
   :*  our.bowl
       now.bowl
-      ~(tap in targets)
+      live-pals
       (ships-of subs)
       follows
       off
@@ -843,6 +843,20 @@
 ::  %public is a list in state, because posting to it mints it like any
 ::  other. it is not a list in the interface: it is the word `everyone`,
 ::  and it has no members to show.
+::
+::  pals we can actually read. every pal gets announced to at install and
+::  whenever the targets list changes, so in steady state each one has either
+::  acked — and is in subs — or nacked into off. listing the rest would put
+::  names in the sidebar that go nowhere.
+::
+++  live-pals
+  ^-  (list ship)
+  =/  on-keep=(set ship)  (ships-of subs)
+  =/  ps=(list ship)  ~(tap in targets)
+  |-  ^-  (list ship)
+  ?~  ps  ~
+  ?.  (~(has in on-keep) i.ps)  $(ps t.ps)
+  [i.ps $(ps t.ps)]
 ::
 ++  roll-list
   ^-  (list [=lyst members=(set ship)])
