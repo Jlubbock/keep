@@ -45,7 +45,11 @@ button.k-link {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
 }
 .k-pals a:hover { color: #171614; }
-.k-find-form { margin: 0; }
+/* every action in this interface is a form. the UA gives <form> a bottom
+   margin, and a form that is a flex item is blockified, so `display:inline`
+   does not suppress it — it lands as dead space under buttons and throws
+   the rows off centre. */
+form { margin: 0; }
 .k-find {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px;
   border: none; border-bottom: 1px solid #e8e3d9;
@@ -84,13 +88,18 @@ button.k-link {
   color: #8a857c; white-space: nowrap;
 }
 .k-who:hover { color: #171614; }
+/* 46px in the spec fitted `11:04`; a full ~2026.12.31 needs about twice
+   that, and the column still has to line up down the page. */
 .k-when {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px;
-  color: #c3bcae; white-space: nowrap; width: 46px; text-align: right;
+  color: #c3bcae; white-space: nowrap; width: 84px; text-align: right;
 }
 .k-re {
   font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #ddd7ca;
 }
+/* the row's 20px gap reads tight against a right-aligned date; nudge the
+   glyph only in the rows, leaving the reader's meta line alone */
+.k-row-in .k-re { margin-left: 8px; }
 .k-re:hover { color: #171614; }
 .k-re.on { color: #171614; cursor: default; }
 

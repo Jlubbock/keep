@@ -28,7 +28,8 @@
   $:  our=ship
       now=@da
       pals=(list ship)
-      subs=(set ship)                    ::  whose index we tail
+      subs=(set ship)                    ::  whose index we tail: mechanical
+      follows=(set ship)                 ::  who we follow: the feed
       off=(set ship)                     ::  confirmed not running %keep
       rolls=(list [=lyst:keep members=(set ship)])
   ==
@@ -44,28 +45,11 @@
   ?~  t.p  i.p
   $(p t.p)
 ::
-++  pad
-  |=  n=@ud
-  ^-  tape
-  ?:((lth n 10) "0{(a-co:co n)}" (a-co:co n))
-::
 ++  day
   |=  wen=@da
   ^-  tape
   =/  d  (yore wen)
   "~{(a-co:co y.d)}.{(a-co:co m.d)}.{(a-co:co d.t.d)}"
-::
-::  the design's short forms: 11:04 today, yest, 3d, then a date.
-::
-++  when
-  |=  wen=@da
-  ^-  tape
-  =/  gap=@dr  ?:((gth wen now.v) *@dr (sub now.v wen))
-  =/  d  (yore wen)
-  ?:  (lth gap ~d1)  "{(pad h.t.d)}:{(pad m.t.d)}"
-  ?:  (lth gap ~d2)  "yest"
-  ?:  (lth gap ~d30)  "{(a-co:co (div gap ~d1))}d"
-  (day wen)
 ::
 ++  pp  |=(who=ship ^-(tape (scow %p who)))
 ++  id-of  |=(e=entry:keep ^-(tape (trip (last path.e))))
@@ -182,7 +166,7 @@
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;a(href "/keep/ship/{(pp ship.entry.r)}", class "k-who"): {(pp ship.entry.r)}
-      ;div.k-when: {?~(hed.r "" (when wen.u.hed.r))}
+      ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
       ;+  (repost-control r back "↻")
     ==
   ==
@@ -199,7 +183,7 @@
         ;div.k-via: ↻ {(pp ship.entry.r)}
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
-      ;div.k-when: {?~(hed.r "" (when wen.u.hed.r))}
+      ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
     ==
   ==
 ::
@@ -220,7 +204,7 @@
   |=  [who=ship rows=(list row)]
   ^-  manx
   =/  back=tape  "/keep/ship/{(pp who)}"
-  =/  following  (~(has in subs.v) who)
+  =/  following  (~(has in follows.v) who)
   %+  shell  ?:(=(who our.v) %mine %feed)
   ;div.k-col
     ;div.k-head
@@ -243,10 +227,15 @@
     ::  and they nacked. otherwise nobody has ever asked — offer to, since
     ::  a scry cannot answer it and only a poke can.
     ;*  ?:  ?=(^ rows)  ~
-        ?:  |(following =(who our.v))  ~
+        ?:  =(who our.v)  ~
         ?:  (~(has in off.v) who)
           :_  ~
           ;div(class "k-note", data-state "off"): no keep
+        ::  we are reading them and nothing has come back. that is either an
+        ::  empty index or one still in flight, and we cannot tell which.
+        ?:  (~(has in subs.v) who)
+          :_  ~
+          ;div(class "k-note", data-state "read"): nothing yet
         ::  data-state is what the client watches: the answer lands in a
         ::  later event, so it re-asks this page until the state moves off
         ::  `unknown` and then shows it.
@@ -272,7 +261,7 @@
     ;h1.k-art-title: {(titled hed.r)}
     ;div.k-meta
       ;a(href "/keep/ship/{(pp ship.entry.r)}"): {(pp ship.entry.r)}
-      ;span.when: {?~(hed.r "" (when wen.u.hed.r))}
+      ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
       ;+  %^  repost-control  r  (read-url entry.r)
           ?:(kept.r "↻ reposted" "↻ repost")
       ::  the shareable link, for our own public posts. anyone can open it,

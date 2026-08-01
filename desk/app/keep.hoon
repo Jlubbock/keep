@@ -78,7 +78,7 @@
       log=(list entry)                 ::  what we have grown here, newest last
   ==
 ::
-+$  versioned-state  $%(state-0 state-1)
++$  versioned-state  $%(state-0 state-1 state-2)
 ::
 +$  state-0
   $:  %0
@@ -94,6 +94,19 @@
 ::
 +$  state-1
   $:  %1
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+  ==
+::
++$  state-2
+  $:  %2
       ::  ours
       posts=(map id item:keep)
       lists=(map lyst roster)
@@ -113,11 +126,17 @@
       ::  the rendered bytes; this is only what we need to know a slug is
       ::  taken and to show an author their own link.
       sites=(map @t id)
+      ::  who we FOLLOW, which is not who we have a keen parked on. subs is
+      ::  mechanical — reading anyone's index puts an entry there, and that
+      ::  is how a visit reads a stranger without subscribing to them in any
+      ::  sense the reader would recognise. follows is the editorial choice,
+      ::  and it is the only thing the feed is built from.
+      follows=(set ship)
   ==
 --
 ::
 %-  agent:dbug
-=|  state-1
+=|  state-2
 =*  state  -
 ^-  agent:gall
 =<
@@ -153,15 +172,25 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  =/  new=state-1
+  ::  everyone we already had a keen parked on was, under the old model,
+  ::  someone we followed. seed follows from that so nobody's feed empties
+  ::  out on upgrade.
+  =/  new=state-2
     ?-  -.old
-      %1  old
+      %2  old
+    ::
+        %1
+      :*  %2
+          posts.old  lists.old  subs.old  wall.old  refs.old
+          heads.old  seen.old   off.old   sites.old
+          (ships-of:hc subs.old)
+      ==
     ::
         %0
-      :*  %1
-          posts.old  lists.old  subs.old  wall.old
-          refs.old   heads.old  seen.old  off.old
-          ~
+      :*  %2
+          posts.old  lists.old  subs.old  wall.old  refs.old
+          heads.old  seen.old   off.old   ~
+          (ships-of:hc subs.old)
       ==
     ==
   :_  this(state new)
@@ -310,20 +339,24 @@
       (give:hc (lists-of:hc all))
     ::
     ::  ---- following ---------------------------------------------------------
+    ::  follow. the keen may already be parked from a visit — following is
+    ::  the editorial act, and it is what the feed reads.
         %sub
       =/  f=feed  [who.act /index]
       =/  at=@ud  (~(gut by subs) f first)
       =/  ss      (~(put by subs) f at)
-      :_  this(subs ss)
+      =/  ff      (~(put in follows) who.act)
+      :_  this(subs ss, follows ff)
       :-  (tail:hc f at)
       (give:hc (peers-of:hc ss off))
     ::
+    ::  unfollow drops them from the feed and leaves the keen parked, so
+    ::  their page still reads. dropping the sub too would make unfollow a
+    ::  second, invisible decision about whether you can still visit them.
         %unsub
-      ?~  at=(~(get by subs) [who.act /index])  `this
-      =/  ss  (~(del by subs) [who.act /index])
-      :_  this(subs ss)
-      :-  (halt:hc [who.act /index] u.at)
-      (give:hc (peers-of:hc ss off))
+      =/  ff  (~(del in follows) who.act)
+      :_  this(follows ff)
+      (give:hc (peers-of:hc subs off))
     ==
   ::
   ::  ---- the interface -------------------------------------------------------
@@ -396,16 +429,21 @@
   ::
   ::  an ack means %keep runs there; a nack means it does not, and that stays
   ::  true until they announce to us, so we record it and never ask again.
-      [%hey @ ~]
+      [?(%hey %ask) @ ~]
     ?.  ?=(%poke-ack -.sign)  `this
     =/  who=ship  (slav %p i.t.wire)
+    ::  a nack is terminal and cacheable: they do not run %keep.
     ?^  p.sign
       =/  oo  (~(put in off) who)
       :_  this(off oo)
       (give:hc (peers-of:hc subs oo))
+    ::  an ack means they do. tail them either way — that is what makes a
+    ::  visit readable — but only enrol them in the feed if we were the one
+    ::  reaching out, on /hey. /ask is someone looking, not subscribing.
     =/  f=feed  [who /index]
     =/  ss      (~(put by subs) f first)
-    :_  this(subs ss)
+    =/  ff      ?:(?=(%hey i.wire) (~(put in follows) who) follows)
+    :_  this(subs ss, follows ff)
     :-  (tail:hc f first)
     (give:hc (peers-of:hc ss off))
   ::
@@ -633,10 +671,19 @@
   ?:  &(=(e entry.i.w) =(/index path.via.i.w))  %.y
   $(w t.w)
 ::
-++  announce
+::  the same poke on two wires. /hey is us announcing to a pal, and an ack
+::  there means we follow them back. /ask is a visitor checking whether a
+::  ship runs %keep at all — same question, but the answer must not enrol
+::  them in anything.
+::
+++  announce  (hail /hey)
+++  probe     (hail /ask)
+::
+++  hail
+  |=  pre=path
   |=  who=ship
   ^-  card
-  :^  %pass  /hey/(scot %p who)  %agent
+  :^  %pass  (welp pre /(scot %p who))  %agent
   [[who %keep] %poke %keep-gossip !>(`gossip:keep`[%announce ~])]
 ::
 ++  tail
@@ -780,7 +827,7 @@
 ::  failed scry would nack the poke and lose the post. the clearnet page
 ::  has no sidebar, so it needs none of it.
 ::
-++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~])
+++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~])
 ::
 ++  view-now
   ^-  view:ui
@@ -788,6 +835,7 @@
       now.bowl
       ~(tap in targets)
       (ships-of subs)
+      follows
       off
       roll-list
   ==
@@ -845,11 +893,24 @@
   ^-  row:ui
   [via e (head-of e) (kept e) (from-public e) (site-of e)]
 ::
+::  the feed is what we follow. everything else we hold — visits, checks,
+::  ships we were invited by — stays on the wall and off the front page.
+::
+::  an entry is walled once, under whichever index delivered it first, so
+::  via alone is the wrong test: a post BY someone we follow that reached us
+::  through someone we later unfollowed would vanish with them. match either
+::  end — the ship that wrote it, or the ship that passed it on.
+::
 ++  feed-rows
   ^-  (list row:ui)
+  %-  by-date
   =/  w  wall
   |-  ^-  (list row:ui)
   ?~  w  ~
+  ?.  ?|  (~(has in follows) ship.via.i.w)
+          (~(has in follows) ship.entry.i.w)
+      ==
+    $(w t.w)
   [(row-of ship.via.i.w entry.i.w) $(w t.w)]
 ::
 ::  a ship's feed IS their index as we have read it: their own posts and
@@ -859,6 +920,7 @@
   |=  who=ship
   ^-  (list row:ui)
   ?:  =(who our.bowl)  own-rows
+  %-  by-date
   =/  w  wall
   |-  ^-  (list row:ui)
   ?~  w  ~
@@ -1070,7 +1132,7 @@
   ?:  =('check' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
     ?:  =(our.bowl u.who)  ~
-    ~[(announce u.who)]
+    ~[(probe u.who)]
   ::
   ?:  =('follow' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
