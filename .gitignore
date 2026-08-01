@@ -2,3 +2,5 @@
 dist
 dist-dev
 .tags
+handoff/*
+handoff
