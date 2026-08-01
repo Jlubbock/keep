@@ -96,7 +96,8 @@
 ::  ---- scry ------------------------------------------------------------------
 ::
 ::    /x/wall/noun               (list [via=feed =entry])
-::    /x/heads/noun              (map entry head)
+::    /x/heads/noun              (map entry head)   — theirs, fetched
+::    /x/posts/noun              (map id item)      — ours, local only
 ::    /x/lists/noun              (map lyst (set ship))
 ::    /x/subs/noun               (map feed @ud)
 ::    /x/item/[ship]/[path]/noun (unit item)  — head and body both resolved

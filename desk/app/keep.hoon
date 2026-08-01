@@ -58,7 +58,9 @@
 ::  for my list). everything else is remote scry.
 ::
 /-  keep
-/+  default-agent, dbug
+/+  default-agent, dbug, srv=server, ui=keep-ui
+/*  style-css  %css  /ui/style/css
+/*  app-js     %js   /ui/app/js
 ::
 |%
 +$  card   card:agent:gall
@@ -115,11 +117,16 @@
 ++  on-init
   ^-  (quip card _this)
   :_  this
-  :-  [%pass /pals %agent [our.bowl %pals] %watch /targets]
+  :+  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
+    [%pass /pals %agent [our.bowl %pals] %watch /targets]
   (turn (unreached:hc known:hc) announce:hc)
 ::
 ++  on-save   !>(state)
-++  on-load   |=(=vase `this(state !<(state-0 vase)))
+++  on-load
+  |=  =vase
+  ^-  (quip card _this)
+  :_  this(state !<(state-0 vase))
+  ~[[%pass /bind %arvo %e %connect [~ /keep] dap.bowl]]
 ::
 ++  on-peek
   |=  =path
@@ -128,6 +135,9 @@
     [%x %wall ~]   ``noun+!>(wall)
     [%x %heads ~]  ``noun+!>(heads)
     [%x %subs ~]   ``noun+!>(subs)
+  ::  what we have published. local only — on-peek is not reachable over
+  ::  ames, and this is the only way to see our own posts without +dbug.
+    [%x %posts ~]  ``noun+!>(posts)
     [%x %lists ~]  ``noun+!>((members-of:hc lists))
   ::
   ::  a whole item, if we hold both halves of it
@@ -257,6 +267,15 @@
       (give:hc (peers-of:hc ss off))
     ==
   ::
+  ::  ---- the interface -------------------------------------------------------
+  ::  every screen and every button. the whole handler is state-free: reads
+  ::  build a page, writes poke us back with the same action a dojo poke
+  ::  would send, so there is exactly one implementation of each.
+      %handle-http-request
+    =+  !<([rid=@ta ir=inbound-request:eyre] vase)
+    :_  this
+    (serve:hc rid ir)
+  ::
   ::  ---- network -------------------------------------------------------------
   ::  remote only, for the same structural reason.
       %keep-gossip
@@ -294,6 +313,8 @@
   ^-  (quip card _this)
   ?>  =(our.bowl src.bowl)
   ?+    path  (on-watch:def path)
+  ::  eyre, waiting on a response we are about to give it
+      [%http-response *]  `this
   ::  the firehose. consumers scry for initial state.
       [%updates ~]   `this
       [%ui %wall ~]   :_(this ~[(gift:hc wall-now:hc)])
@@ -329,6 +350,14 @@
     :-  (tail:hc f 0)
     (give:hc (peers-of:hc ss off))
   ::
+  ::  a poke we sent ourselves on behalf of a click. a nack is a refusal the
+  ::  agent made on purpose, and the only place it can be reported is here.
+      [%self ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep: refused" u.p.sign)
+    `this
+  ::
   ::  an invite they refused is theirs to refuse. we stay grown to their path.
       [%poke @ ~]
     ?.  ?=(%poke-ack -.sign)  `this
@@ -351,6 +380,9 @@
 ++  on-arvo
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
+  ?:  ?=([%eyre %bound *] sign-arvo)
+    ~?  !accepted.sign-arvo  %keep-eyre-rejected-binding
+    `this
   ?.  ?=([%ames %tune *] sign-arvo)  (on-arvo:def wire sign-arvo)
   =*  roar  roar.sign-arvo
   ?+    wire  `this
@@ -565,6 +597,326 @@
   ^-  card
   :^  %pass  [%body (scot %p ship.e) path.e]  %keen
   [%.n ship.e (welp path.e /body)]
+::
+::  ---- the interface ---------------------------------------------------------
+::  a projection of state, flat, with the joins done. the ui library gets
+::  this and nothing else — no bowl, no cards, no state.
+::
+++  vw  ~(. ui view-now)
+::
+++  view-now
+  ^-  view:ui
+  :*  our.bowl
+      now.bowl
+      ~(tap in targets)
+      (ships-of subs)
+      off
+      roll-list
+  ==
+::
+::  %public is a list in state, because posting to it mints it like any
+::  other. it is not a list in the interface: it is the word `everyone`,
+::  and it has no members to show.
+::
+++  roll-list
+  ^-  (list [=lyst members=(set ship)])
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  |-  ^-  (list [=lyst members=(set ship)])
+  ?~  ls  ~
+  ?:  =(%public p.i.ls)  $(ls t.ls)
+  [[p.i.ls members.q.i.ls] $(ls t.ls)]
+::
+++  last-of
+  |=  p=path
+  ^-  @ta
+  ?~  p  ''
+  ?~  t.p  i.p
+  $(p t.p)
+::
+::  have we syndicated this entry to any list of ours
+++  kept
+  |=  e=entry
+  ^-  ?
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  |-  ^-  ?
+  ?~  ls  %.n
+  ?:  (has-entry log.q.i.ls e)  %.y
+  $(ls t.ls)
+::
+++  has-entry
+  |=  [es=(list entry) e=entry]
+  ^-  ?
+  ?~  es  %.n
+  ?:  =(i.es e)  %.y
+  $(es t.es)
+::
+::  heads holds what we fetched from other people. our own head never went
+::  through a keen — it is in posts, next to the body — so both lookups have
+::  to fork on whose entry it is.
+::
+++  head-of
+  |=  e=entry
+  ^-  (unit head:keep)
+  ?.  =(our.bowl ship.e)  (~(get by heads) e)
+  ?~  i=(slaw %uv (last-of path.e))  ~
+  ?~  got=(~(get by posts) u.i)  ~
+  `head.u.got
+::
+++  row-of
+  |=  [via=ship e=entry]
+  ^-  row:ui
+  [via e (head-of e) (kept e) (from-public e)]
+::
+++  feed-rows
+  ^-  (list row:ui)
+  =/  w  wall
+  |-  ^-  (list row:ui)
+  ?~  w  ~
+  [(row-of ship.via.i.w entry.i.w) $(w t.w)]
+::
+::  a ship's feed IS their index as we have read it: their own posts and
+::  whatever they syndicated, in the order it arrived.
+::
+++  user-rows
+  |=  who=ship
+  ^-  (list row:ui)
+  ?:  =(who our.bowl)  own-rows
+  =/  w  wall
+  |-  ^-  (list row:ui)
+  ?~  w  ~
+  ?.  =(who ship.via.i.w)  $(w t.w)
+  [(row-of ship.via.i.w entry.i.w) $(w t.w)]
+::
+::  ours is the one feed we cannot read off the wall — we never tail
+::  ourselves. it is what we wrote plus what we passed on.
+::
+++  own-rows
+  ^-  (list row:ui)
+  =/  ps=(list [p=id q=item:keep])  ~(tap by posts)
+  =/  mine=(list row:ui)
+    |-  ^-  (list row:ui)
+    ?~  ps  ~
+    =/  e=entry  [our.bowl (welp (base 0) (item-spur p.i.ps))]
+    [[our.bowl e `head.q.i.ps %.y %.n] $(ps t.ps)]
+  =/  theirs=(list row:ui)
+    =/  es=(list entry)  ~(tap in kept-entries)
+    |-  ^-  (list row:ui)
+    ?~  es  ~
+    ?:  =(our.bowl ship.i.es)  $(es t.es)
+    [(row-of our.bowl i.es) $(es t.es)]
+  (by-date (weld mine theirs))
+::
+++  kept-entries
+  ^-  (set entry)
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  |-  ^-  (set entry)
+  ?~  ls  ~
+  =/  rest=(set entry)  $(ls t.ls)
+  =/  es=(list entry)  log.q.i.ls
+  |-  ^-  (set entry)
+  ?~  es  rest
+  (~(put in $(es t.es)) i.es)
+::
+::  insertion sort, newest first. spelled out rather than +sort so nothing
+::  wet is inferring a type over a row.
+::
+++  by-date
+  |=  rs=(list row:ui)
+  ^-  (list row:ui)
+  =|  out=(list row:ui)
+  |-  ^-  (list row:ui)
+  ?~  rs  out
+  $(rs t.rs, out (insert-row out i.rs))
+::
+++  insert-row
+  |=  [rs=(list row:ui) r=row:ui]
+  ^-  (list row:ui)
+  ?~  rs  ~[r]
+  ?:  (gth (stamp r) (stamp i.rs))  [r rs]
+  [i.rs $(rs t.rs)]
+::
+++  stamp
+  |=  r=row:ui
+  ^-  @da
+  ?~  hed.r  *@da
+  wen.u.hed.r
+::
+::  our own bodies never went through a keen, so they are in posts, not in
+::  seen. everyone else's are in seen or nowhere yet.
+::
+++  body-of
+  |=  e=entry
+  ^-  (unit page)
+  ?.  =(our.bowl ship.e)  (~(get by seen) e)
+  ?~  i=(slaw %uv (last-of path.e))  ~
+  ?~  got=(~(get by posts) u.i)  ~
+  `page.u.got
+::
+::  ---- http ------------------------------------------------------------------
+::
+++  serve
+  |=  [rid=@ta ir=inbound-request:eyre]
+  ^-  (list card)
+  =*  req  request.ir
+  ?.  authenticated.ir
+    (paint rid (login-redirect:gen:srv req))
+  ?:  =('POST' method.req)  (writes rid req)
+  =/  =pork:eyre
+    (rash url.req ;~(sfix apat:de-purl:html yquy:de-purl:html))
+  =/  ext=(unit @ta)  -.pork
+  =/  seg=path        +.pork
+  ?+    seg  (paint rid not-found:gen:srv)
+  ::
+      [%keep %style ~]
+    ?.  =([~ %css] ext)  (paint rid not-found:gen:srv)
+    (paint rid (css-response:gen:srv (as-octs:mimes:html style-css)))
+  ::
+      [%keep %app ~]
+    ?.  =([~ %js] ext)  (paint rid not-found:gen:srv)
+    (paint rid (js-response:gen:srv (as-octs:mimes:html app-js)))
+  ::
+      [%keep ~]        (render rid (feed-page:vw feed-rows))
+      [%keep %write ~]  (render rid write-page:vw)
+      [%keep %lists ~]  (render rid (lists-page:vw ~))
+      [%keep %lists @ ~]
+    (render rid (lists-page:vw (slaw %tas i.t.t.seg)))
+  ::
+      [%keep %ship @ ~]
+    ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
+    (render rid (user-page:vw u.who (user-rows u.who)))
+  ::
+  ::  opening an article is what asks for the body. the page renders either
+  ::  way; the keen lands later or never.
+  ::  /keep/read/[id]/[ship] — the id is dotted, so it cannot be the last
+  ::  segment or eyre reads its tail as a file extension.
+      [%keep %read @ @ ~]
+    ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
+    =/  e=entry  [u.who (welp (base 0) /item/[i.t.t.seg])]
+    =/  bod=(unit page)  (body-of e)
+    %+  weld
+      ?^  bod  ~
+      ?:  =(our.bowl u.who)  ~
+      ~[(fetch-body e)]
+    (render rid (read-page:vw (row-of u.who e) bod))
+  ==
+::
+++  paint
+  |=  [rid=@ta pay=simple-payload:http]
+  ^-  (list card)
+  (give-simple-payload:app:srv rid pay)
+::
+::  not +html: that name shadows zuse's html core, and this file asks it
+::  for de-purl and mimes a few lines up.
+::
+++  render
+  |=  [rid=@ta man=manx]
+  ^-  (list card)
+  (paint rid (manx-response:gen:srv man))
+::
+::  positional, not k= and v=: quay's faces are p and q, and a bare pair
+::  nests either way.
+::
+++  arg
+  |=  [q=(list [@t @t]) key=@t]
+  ^-  @t
+  ?~  q  ''
+  ?:  =(key -.i.q)  +.i.q
+  $(q t.q)
+::
+::  every write is the same action a dojo poke would send, sent to
+::  ourselves. the guard on %keep-action is =(our src), which a self-poke
+::  satisfies, and a refusal nacks in +on-agent rather than here.
+::
+++  self
+  |=  act=action:keep
+  ^-  (list card)
+  ~[[%pass /self %agent [our.bowl %keep] %poke %keep-action !>(act)]]
+::
+++  writes
+  |=  [rid=@ta req=request:http]
+  ^-  (list card)
+  =/  q=(list [@t @t])
+    ?~  body.req  ~
+    =/  got  (rush q.u.body.req yquy:de-purl:html)
+    ?~(got ~ u.got)
+  =/  what=@t  (arg q 'what')
+  =/  back=@t  (arg q 'back')
+  ::  search. purely navigational — slaw validates the name and we go look
+  ::  at whatever we already hold. no packet leaves the ship.
+  ?:  =('go' what)
+    %+  paint  rid
+    %-  bounce
+    ?~  who=(slaw %p (arg q 'who'))  ?:(=('' back) '/keep' back)
+    (crip "/keep/ship/{(scow %p u.who)}")
+  %+  weld  (act-of q what)
+  ?:  =('publish' what)
+    (paint rid [[200 ~] ~])
+  (paint rid (bounce ?:(=('' back) '/keep' back)))
+::
+::  303, not the 307 that +redirect:gen gives: 307 preserves the method, so
+::  the browser re-POSTs the same form to the target and the write happens
+::  again, and again. 303 sends it back as a GET.
+::
+++  bounce
+  |=  url=@t
+  ^-  simple-payload:http
+  [[303 ['location' url]~] ~]
+::
+++  act-of
+  |=  [q=(list [@t @t]) what=@t]
+  ^-  (list card)
+  ?:  =('publish' what)
+    =/  bod=@t  (arg q 'body')
+    ?:  =('' bod)  ~
+    =/  tit=@t  (arg q 'title')
+    =/  to=@t   (arg q 'to')
+    ::  cast, or the two branches stay a fork of two different unit types
+    ::  and u.aud has no single type to resolve in.
+    =/  aud=(unit lyst)
+      ?:(=('everyone' to) `%public (slaw %tas to))
+    ?~  aud  ~
+    %-  self
+    :^  %post  [%md bod]
+      ?:(=('' tit) ~ `tit)
+    ['' (sy ~[u.aud])]
+  ::
+  ?:  =('repost' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    =/  e=entry  [u.who (welp (base 0) /item/[(arg q 'id')])]
+    (self [%keep e (sy ~[%public])])
+  ::
+  ::  the one place a click sends a packet to a stranger, and it is the only
+  ::  thing that can answer "do they run %keep": a scry returns silence for
+  ::  an unbound path, a poke nacks. the ack lands in +on-agent on /hey and
+  ::  files them in subs or off.
+  ?:  =('check' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    ?:  =(our.bowl u.who)  ~
+    ~[(announce u.who)]
+  ::
+  ?:  =('follow' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (self [%sub u.who])
+  ::
+  ?:  =('unfollow' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (self [%unsub u.who])
+  ::
+  ?:  =('make' what)
+    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    ?:  =(%public u.nom)  ~
+    (self [%list u.nom ~])
+  ::
+  ?:  =('admit' what)
+    ?~  nom=(slaw %tas (arg q 'list'))  ~
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (self [%admit u.nom (sy ~[u.who])])
+  ::
+  ?:  =('evict' what)
+    ?~  nom=(slaw %tas (arg q 'list'))  ~
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (self [%evict u.nom (sy ~[u.who])])
+  ~
 ::
 ::  ---- telling the local ship ------------------------------------------------
 ::  state changes in three unrelated places. one router, so none of them has

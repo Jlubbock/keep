@@ -1,0 +1,14 @@
+::  the tile. `site` points at the agent's own eyre binding rather than a
+::  glob, because the frontend is server-rendered out of clay — there is no
+::  bundle to fetch and no build step to produce one.
+::
+:~
+  title+'Keep'
+  info+'Longform, syndicated over remote scry.'
+  color+0x17.1614
+  version+[0 1 0]
+  website+'https://github.com/Jlubbock/keep'
+  license+'MIT'
+  base+'keep'
+  site+/keep
+==

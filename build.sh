@@ -40,6 +40,14 @@ build() {
     cp -r desk/* dist/
   fi
 
+  # ui holds the served static assets (css, js). they are read out of clay by
+  # the agent's /* imports, so they have to land inside the desk.
+  if [[ -d ui ]]; then
+    echo "Copying ui → dist/ui..."
+    mkdir -p dist/ui
+    cp -r ui/* dist/ui/
+  fi
+
   echo "Running peru sync..."
   if ! peru sync 2>&1; then
     echo "Error: peru sync failed. Cleaning up dist..." >&2
