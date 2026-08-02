@@ -13,7 +13,8 @@ import * as h from './harness.mjs';
 //  of the suite; `ships` says who must be up.
 const SCENARIOS = [
   { file: 'c1-follow.mjs', ships: [h.HOST, h.PEER] },
-  { file: 'c2-gating.mjs', ships: [h.HOST, h.PEER] },
+  { file: 'c2-gating.mjs', ships: [h.HOST, h.PEER, h.WITNESS],
+    note: 'needs a second member — one member cannot show eviction is targeted' },
   { file: 'c3-forgery.mjs', ships: [h.HOST, h.PEER], note: 'needs %rogue running on the peer' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its

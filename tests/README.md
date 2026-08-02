@@ -33,8 +33,11 @@ at all.
 
 - `c1-follow` — the public path: grow `/index`, keen, head eagerly, body on
   click, verdict `%.y`.
-- `c2-gating` — a gated list, and eviction as three beats: delivered,
-  withheld, delivered again.
+- `c2-gating` — a gated list with TWO members. One post published after the
+  eviction must reach the witness and not the evicted peer, so the control is
+  concurrent — same list, same post, same window. With one member, "withheld"
+  is indistinguishable from a fleet that cannot deliver, and a broken fleet
+  scores it green.
 - `c3-forgery` — a spliced head from a peer running different code.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
@@ -106,12 +109,14 @@ overrides the second; there is no override for the first.
 Its own, at `~/solarsystem/fleet/keep` — not the marketplace suite's piers.
 Different `@p`, different ports, so both suites can run at once.
 
-    fleet/keep/golden/{dev,lex}    baked by tests/bake.mjs, never by a run
-    fleet/keep/run/{dev,lex}       disposable CoW clones, ports 8095/8096
+    fleet/keep/golden/{dev,lex,mun}   baked by tests/bake.mjs, never by a run
+    fleet/keep/run/{dev,lex,mun}      disposable CoW clones, ports 8095-8097
 
 `~dev` is the HOST — it publishes, owns lists, and judges. `~lex` is the PEER —
-it reads, gets gated, and runs the rogue. Scenarios name them by role
-(`h.HOST`, `h.PEER`), so re-pointing the fleet is one edit in `harness.mjs`.
+it reads, gets gated, and runs the rogue. `~mun` is the WITNESS, a second
+member of the same list who is never evicted. Scenarios name them by role
+(`h.HOST`, `h.PEER`, `h.WITNESS`), so re-pointing the fleet is one edit in
+`harness.mjs`.
 
 **They must be GALAXIES.** A star routes to another ship via its sponsor, so
 two stars under sponsors that are not themselves running cannot reach each

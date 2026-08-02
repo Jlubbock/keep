@@ -1,8 +1,13 @@
 //  C2 — a gated list, and what eviction actually costs.
 //
-//    Revocation is not re-keying: it is declining to grow to that member's
-//    path again. So the test is three beats — delivered, withheld, delivered
-//    again — because "withheld" on its own is what a broken fleet looks like.
+//    Revocation is not re-keying: it is declining to grow to one member's
+//    path again. Two members are what make that testable. One %post, published
+//    after the eviction, must reach the witness and not the evicted peer — so
+//    the withheld half is controlled by the delivered half, in the same
+//    window, over the same list, from the same post.
+//
+//    With one member, "withheld" is indistinguishable from a fleet that cannot
+//    deliver — which is exactly what an earlier broken fleet scored green.
 
 import * as h from '../harness.mjs';
 
@@ -14,33 +19,41 @@ const AFTER = `c2 after ${TAG}`;
 const s = h.sheet('c2-gating');
 const host = await h.connect(h.HOST);
 const peer = await h.connect(h.PEER);
+const witness = await h.connect(h.WITNESS);
 
 const post = (title, body) =>
   h.poke(host, `[%post md+'${body}' \`'${title}' 'cc0' (sy ~[%${LYST}])]`);
 
-//  the host's own page on the peer: every row whose feed is the host's
-const sees = (title) => peer.get(`/keep/ship/${h.HOST}`).then((r) => r.body.includes(title));
+//  the host's own page on a reader: every row whose feed is the host's
+const sees = (m, title) =>
+  m.get(`/keep/ship/${h.HOST}`).then((r) => r.body.includes(title));
 
-await h.poke(host, `[%list %${LYST} (sy ~[${h.PEER}])]`);
+await h.poke(host, `[%list %${LYST} (sy ~[${h.PEER} ${h.WITNESS}])]`);
 await post(BEFORE, 'members only');
 
 s.check('C2.1 a member receives the list',
-  await h.got(h.until('peer to see the gated post', () => sees(BEFORE), { timeout: 60000 })));
+  await h.got(h.until('peer to see the gated post', () => sees(peer, BEFORE), { timeout: 60000 })));
+
+s.check('C2.2 so does every other member',
+  await h.got(h.until('witness to see the gated post', () => sees(witness, BEFORE), { timeout: 60000 })));
 
 await h.poke(host, `[%evict %${LYST} (sy ~[${h.PEER}])]`);
 await post(AFTER, 'after the eviction');
 
-//  the in-window control: if BEFORE vanished we are reading an error page and
-//  the absence of AFTER would mean nothing
-s.check('C2.2 an evicted member receives nothing',
-  await h.stays('peer to keep the old post and not the new one',
-    async () => (await sees(BEFORE)) && !(await sees(AFTER)), { hold: 15000 })
-    .then(() => true).catch(() => false));
+//  concurrent control: the same post reaching the witness is what makes the
+//  peer's silence mean eviction rather than a dead fleet
+s.check('C2.3 an unevicted member is undisturbed',
+  await h.got(h.until('witness to receive the post-eviction one', () => sees(witness, AFTER), { timeout: 60000 })));
 
-//  the positive control: the channel was never broken, only unfed
+s.check('C2.4 the evicted member receives nothing',
+  await h.got(h.stays('peer to keep the old post and never see the new one',
+    async () => (await sees(peer, BEFORE)) && !(await sees(peer, AFTER)), { hold: 15000 })));
+
+//  re-admission re-grows the whole log to the same address: no re-key, and the
+//  withheld post arrives late rather than never
 await h.poke(host, `[%admit %${LYST} (sy ~[${h.PEER}])]`);
 
-s.check('C2.3 re-admission backfills what was withheld',
-  await h.got(h.until('peer to receive the withheld post', () => sees(AFTER), { timeout: 60000 })));
+s.check('C2.5 re-admission backfills what was withheld',
+  await h.got(h.until('peer to receive the withheld post', () => sees(peer, AFTER), { timeout: 60000 })));
 
 process.exit(s.done() ? 1 : 0);

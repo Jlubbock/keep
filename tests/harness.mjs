@@ -22,11 +22,15 @@ export const AGENT = 'keep';
 export const SHIPS = {
   '~dev': { name: 'dev', port: 8095, code: 'magsub-micsev-bacmug-moldex' },
   '~lex': { name: 'lex', port: 8096, code: 'tonhet-diltyd-dotsup-sabnum' },
+  '~mun': { name: 'mun', port: 8097, code: 'batwed-fosdet-nidnet-tarlet' },
 };
 
 //  HOST publishes and judges; PEER reads, is gated, and runs the rogue.
+//  WITNESS is a second member of the same list, never evicted — it is what
+//  turns "the evicted member stopped receiving" into "and nobody else noticed".
 export const HOST = '~dev';
 export const PEER = '~lex';
+export const WITNESS = '~mun';
 
 const pier = (n) => `${FLEET}/run/${n}`;
 const golden = (n) => `${FLEET}/golden/${n}`;
