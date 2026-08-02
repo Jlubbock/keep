@@ -29,16 +29,36 @@ const sees = (m, title) =>
   m.get(`/keep/ship/${h.HOST}`).then((r) => r.body.includes(title));
 
 //  the per-member spur IS the capability, and it exists nowhere on the reader
-//  but its own pending map — so the test reads it back rather than deriving it
+//  but its own pending map — so the test reads it back rather than deriving it.
+//
+//  off the PAGE, not a dojo print: the spur's salt is drawn from eny, so its
+//  @uv is a different length every run and the dojo wraps it or doesn't
 const invitePath = async (m, from) => {
-  const out = await h.dojo(m, `~(tap by .^((map [@p path] @tas) %gx /=keep=/pending/noun))`);
-  return new RegExp(`\\[${from} (/\\S+)\\]`).exec(out)?.[1] ?? null;
+  const b = (await m.get('/keep/lists')).body;
+  const at = b.indexOf(`class="k-invite-who">${from}<`);
+  if (at < 0) return null;
+  return /name="path" value="([^"]+)"/.exec(b.slice(at))?.[1] ?? null;
 };
+
+//  the button, not the action: a poke would skip +invite-of, where the spur
+//  arrives as a form field and is parsed back into a path
+const submit = (m, fields) =>
+  fetch(`${m.url}/keep`, {
+    method: 'POST',
+    headers: { Cookie: m.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields).toString(),
+    redirect: 'manual',
+  });
 
 const accept = async (m, from) => {
   const p = await h.until(`${m.patp} to be offered an invite`, () => invitePath(m, from));
-  return h.poke(m, `[%accept [${from} ${p}]]`);
+  return submit(m, { what: 'accept', who: from, path: p, back: '/keep/lists' });
 };
+
+//  the sidebar names ships too, so anchor on the invite's own class
+const offered = (m, from) =>
+  m.get('/keep/lists').then((r) =>
+    r.body.includes('k-pending') && r.body.includes(`class="k-invite-who">${from}<`));
 
 await h.poke(host, `[%list %${LYST} (sy ~[${h.PEER} ${h.WITNESS}])]`);
 await post(BEFORE, 'members only');
@@ -49,6 +69,11 @@ await post(BEFORE, 'members only');
 s.check('C2.0 an unaccepted invite delivers nothing',
   await h.got(h.stays('peer to stay empty while the invite is pending',
     async () => !(await sees(peer, BEFORE)), { hold: 15000 })));
+
+//  an offer nobody can see is not an offer: this is the only check that
+//  renders the pending block, and a bad manx there 500s the whole page
+s.check('C2.0b and is offered on the lists page',
+  await h.got(h.until('peer lists page to show the invite', () => offered(peer, h.HOST))));
 
 await accept(peer, h.HOST);
 await accept(witness, h.HOST);

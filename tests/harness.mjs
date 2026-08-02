@@ -230,6 +230,9 @@ export function kill(n) {
 //  cp -c is an APFS clone: ~0.1s for a 1GB pier. Boot (~40s) is the only cost.
 export function clone(n) {
   kill(n);
+  //  pkill returns before the serf does, and a dying ship recreates its pier —
+  //  cp -cR into that leftover directory nests golden/<n> inside run/<n>
+  execSync('sleep 2');
   if (existsSync(pier(n))) rmSync(pier(n), { recursive: true, force: true });
   if (!existsSync(golden(n))) throw new Error(`no golden pier at ${golden(n)}`);
   //  cp does not create intermediate directories, and run/ does not exist
