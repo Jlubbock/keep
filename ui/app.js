@@ -12,8 +12,29 @@
 
   // ---- markdown ---------------------------------------------------------
 
+  // " and ' too, not just the tag characters: a link url is interpolated
+  // into href="…", where an unescaped quote closes the attribute and the
+  // rest of the url becomes markup — an onmouseover= on our own origin
   function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // browsers strip control characters and whitespace before reading the
+  // scheme, so `java\tscript:` is javascript: — strip them here as well
+  var SCHEME = /^([a-z][a-z0-9+.\-]*):/i;
+  var ALLOWED = { 'http': 1, 'https': 1, 'mailto': 1 };
+
+  // null for a url we will not link: an unknown scheme renders as plain
+  // text rather than a dead href, which would swallow the click
+  function href(url) {
+    // esc() ran first, so a raw < here is a tag the rules above injected
+    // into what the author wrote as a url — not a url, and not linkable
+    if (/[<>]/.test(url)) return null;
+    var bare = url.replace(/[\u0000-\u0020]/g, '');
+    var got = SCHEME.exec(bare);
+    if (!got) return url;
+    return ALLOWED[got[1].toLowerCase()] ? url : null;
   }
 
   function inline(s) {
@@ -21,7 +42,10 @@
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
       .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+      .replace(/\[(.+?)\]\((.+?)\)/g, function (_, text, url) {
+        var to = href(url);
+        return to === null ? text : '<a href="' + to + '">' + text + '</a>';
+      });
   }
 
   function md(src) {
