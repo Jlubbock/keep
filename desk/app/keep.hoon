@@ -54,7 +54,7 @@
       lists=(map lyst roster)
       subs=(map feed @ud)              ::  feed -> revision we are keened on
       wall=(list [via=feed =entry])    ::  newest first
-      refs=(set entry)                 ::  every entry ever walled
+      refs=(set entry)                 ::  every entry now walled
       heads=(map entry head-0)         ::  fetched eagerly
       seen=(map entry page)            ::  fetched on %open
       off=(set ship)                   ::  ships confirmed not running %keep
@@ -303,6 +303,27 @@
         posts    posts.m
         keeping  (~(del by keeping) entry.act)
       ==
+    ::
+    ::  ---- unpublishing ------------------------------------------------------
+        %delete
+      ?.  (~(has by posts) id.act)  `this
+      =/  spur=path      (item-spur:hc id.act)
+      =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
+      =^  cards  lists   (unfan:hc entry)
+      =/  new-posts      (~(del by posts) id.act)
+      =/  url=(unit @t)  (site-of:hc entry)
+      =/  new-sites      ?~(url sites (~(del by sites) u.url))
+      =/  web=(list card)
+        ?~  url  ~
+        ~[(uncache:hc u.url) (index-card:hc new-sites new-posts)]
+      ::  a reposter re-grew our bytes under their own /item, so tombing ours
+      ::  ends our copy and not theirs
+      =/  buries=(list card)
+        :~  [%pass /tomb %tomb [%ud first:hc] (welp spur /head)]
+            [%pass /tomb %tomb [%ud first:hc] (welp spur /body)]
+        ==
+      :_  this(posts new-posts, sites new-sites)
+      :(weld cards buries web (give:hc [%deleted entry]))
     ::
     ::  ---- reading -----------------------------------------------------------
         %open
@@ -559,17 +580,21 @@
       ~[(tail:hc f +(at))]
     =/  new=(list entry)  (skip p.got ~(has in refs))
     =/  fresh=(set entry)  (sy new)
+    ::  a revision carries the whole index, so what it omits, the author deleted
+    =/  cut  (prune:hc f p.got)
     =/  fold=(list [via=feed =entry])
       (flop (turn new |=(e=entry [f e])))
     =/  fetches=(list card)   (turn new fetch-head:hc)
     =/  arrivals=(list card)
       (zing (turn new |=(e=entry (give:hc [%arrived f e]))))
+    =/  departures=(list card)
+      (zing (turn gone.cut |=(e=entry (give:hc [%deleted e]))))
     :_  %=  this
           subs  (~(put by subs) f +(at))
-          refs  (~(uni in refs) fresh)
-          wall  (weld fold wall)
+          refs  (~(dif in (~(uni in refs) fresh)) (sy gone.cut))
+          wall  (weld fold rest.cut)
         ==
-    :(weld ~[(tail:hc f +(at))] fetches arrivals)
+    :(weld ~[(tail:hc f +(at))] fetches arrivals departures)
   ==
 ::
 ++  on-leave  on-leave:def
@@ -642,6 +667,15 @@
 ++  member-spur  member-spur:kc
 ++  mint         |=(=lyst ^-(@uvH (mint:kc eny.bowl lyst)))
 ::
+++  spread
+  |=  [=lyst lst=roster es=(list entry)]
+  ^-  (list card)
+  ?:  =(%public lyst)
+    ~[[%pass /grow %grow /index noun+es]]
+  %+  turn  ~(tap in members.lst)
+  |=  w=ship
+  [%pass /grow %grow (member-spur lyst salt.lst w) noun+es]
+::
 ++  fan-out
   |=  [e=entry to=(list lyst)]
   ^-  [(list card) (map lyst roster)]
@@ -656,14 +690,34 @@
     |-  ^-  (list entry)
     ?~  old  ~[e]
     [i.old $(old t.old)]
-  =/  cs=(list card)
-    ?:  =(%public i.to)
-      ~[[%pass /grow %grow /index noun+new]]
-    %+  turn  ~(tap in members.lst)
-    |=  w=ship
-    [%pass /grow %grow (member-spur i.to salt.lst w) noun+new]
+  =/  cs=(list card)  (spread i.to lst new)
   =^  more  lsts  $(to t.to, lsts (~(put by lsts) i.to lst(log new)))
   [(weld cs more) lsts]
+::
+++  unfan
+  |=  e=entry
+  ^-  [(list card) (map lyst roster)]
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  =/  lsts  lists
+  |-  ^-  [(list card) (map lyst roster)]
+  ?~  ls  [~ lsts]
+  =/  new=(list entry)  (drop-entry log.q.i.ls e)
+  ?:  =(new log.q.i.ls)  $(ls t.ls)
+  =/  cs=(list card)  (spread p.i.ls q.i.ls new)
+  =^  more  lsts  $(ls t.ls, lsts (~(put by lsts) p.i.ls q.i.ls(log new)))
+  [(weld cs more) lsts]
+::
+++  prune
+  |=  [f=feed es=(list entry)]
+  ^-  [gone=(list entry) rest=(list [via=feed =entry])]
+  =/  have=(set entry)  (sy es)
+  =/  w  wall
+  |-  ^-  [gone=(list entry) rest=(list [via=feed =entry])]
+  ?~  w  [~ ~]
+  =/  more  $(w t.w)
+  ?.  &(=(f via.i.w) !(~(has in have) entry.i.w))
+    [gone.more [i.w rest.more]]
+  [[entry.i.w gone.more] rest.more]
 ::
 ++  welcome
   |=  [=lyst salt=@uvH log=(list entry) who=ship]
@@ -792,6 +846,11 @@
   ^-  card
   [%pass /eyre/cache %arvo %e %set-response url `[%.n %payload pay]]
 ::
+++  uncache
+  |=  url=@t
+  ^-  card
+  [%pass /eyre/cache %arvo %e %set-response url ~]
+::
 ++  assets
   ^-  (list card)
   :~  (cache '/keep/style.css' (css-response:gen:srv (as-octs:mimes:html style-css)))
@@ -880,7 +939,8 @@
   ?:  (has-entry log.q.i.ls e)  %.y
   $(ls t.ls)
 ::
-++  has-entry  has-entry:kc
+++  has-entry   has-entry:kc
+++  drop-entry  drop-entry:kc
 ::
 ++  head-of
   |=  e=entry
@@ -1078,6 +1138,10 @@
     =/  e=entry  [u.who (welp (base first) /item/[(arg q 'id')])]
     (self [%keep e (sy ~[%public])])
   ::
+  ?:  =('delete' what)
+    ?~  i=(slaw %uv (arg q 'id'))  ~
+    (self [%delete u.i])
+  ::
   ?:  =('check' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
     ?:  =(our.bowl u.who)  ~
@@ -1131,6 +1195,7 @@
     %wall     /ui/wall
     %posted   /ui/wall
     %arrived  /ui/wall
+    %deleted  /ui/wall
     %head     /ui/wall
     %lists    /ui/lists
     %pending  /ui/lists

@@ -370,10 +370,21 @@
     });
   }
 
+  // ---- delete -----------------------------------------------------------
+
+  function deletes() {
+    Array.prototype.slice.call(document.querySelectorAll('form.k-del-form')).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        if (!window.confirm('delete this post? reposts of it stay up.')) e.preventDefault();
+      });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     reader();
     editor();
     checker();
     lists();
+    deletes();
   });
 })();

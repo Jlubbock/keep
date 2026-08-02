@@ -39,6 +39,12 @@ at all.
   is indistinguishable from a fleet that cannot deliver, and a broken fleet
   scores it green.
 - `c3-forgery` — a spliced head from a peer running different code.
+- `c5-delete` — the author deletes; the follower's row goes and the reposter's
+  stays. The witness reads both copies, so "pruned" is controlled by "still
+  delivered" in the same window. Two posts are published: the tomb can only be
+  observed on the one whose body NOBODY fetched, since a body that has been
+  served once may be answered from a cache rather than from gall. Runs BEFORE
+  `c4-announce`, which is last by rule rather than by number.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
 

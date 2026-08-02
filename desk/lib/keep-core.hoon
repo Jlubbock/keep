@@ -38,6 +38,13 @@
   ?:  =(i.es e)  %.y
   $(es t.es)
 ::
+++  drop-entry
+  |=  [es=(list entry:keep) e=entry:keep]
+  ^-  (list entry:keep)
+  ?~  es  ~
+  ?:  =(i.es e)  $(es t.es)
+  [i.es $(es t.es)]
+::
 ::  ---- clearnet --------------------------------------------------------------
 ::
 ++  reserved

@@ -116,4 +116,27 @@
   !>  :~  (has-entry:kc es [~bus /item/0v2])
           (has-entry:kc es [~bus /item/0v3])
       ==
+::
+::  ---- deletion --------------------------------------------------------------
+::
+::  a revision carries the whole index, so deleting is growing the log again
+::  without one pointer — the order of what remains is what a reader diffs
+++  test-drop-entry-keeps-the-order
+  ^-  tang
+  =/  es  ~[[~zod /item/0v1] [~zod /item/0v2] [~zod /item/0v3]]
+  %+  expect-eq  !>(~[[~zod /item/0v1] [~zod /item/0v3]])
+  !>((drop-entry:kc es [~zod /item/0v2]))
+::
+::  a repost is the SAME id at the reposter's address, so deleting ours must
+::  not match theirs
+++  test-drop-entry-is-by-address
+  ^-  tang
+  =/  es  ~[[~zod /item/0v1] [~bus /item/0v1]]
+  %+  expect-eq  !>(~[[~bus /item/0v1]])
+  !>((drop-entry:kc es [~zod /item/0v1]))
+::
+++  test-drop-entry-of-a-stranger-changes-nothing
+  ^-  tang
+  =/  es  ~[[~zod /item/0v1] [~zod /item/0v2]]
+  (expect-eq !>(es) !>((drop-entry:kc es [~zod /item/0v9])))
 --

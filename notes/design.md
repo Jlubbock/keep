@@ -45,6 +45,30 @@ the exposure this does NOT cover: a member who leaks a body address rather
 than their index address. bodies are shared across members, so that leak is
 anonymous. catching it would mean a copy per member per post.
 
+## Deletion
+
+deleting is the same move as evicting, aimed at a pointer instead of a member:
+grow every index the post was in again, without it, and tomb `/item/[id]`.
+a revision carries the whole log, so a reader diffs the one that lands against
+what it walled from that feed and drops what is missing. no delete message, no
+per-post state, nothing to negotiate — a follower that is offline for a week
+learns about the deletion from the next revision it reads.
+
+what that reaches, and what it does not:
+
+- our own index, our own copy, our own url on the open web: all gone.
+- a follower's feed: the row goes when the next revision lands.
+- a follower's cached head and body: kept. they read it already, and a reader's
+  cache is not ours to empty.
+- a REPOST: untouched, by construction. `+mirror` re-grew the bytes under the
+  reposter's own `/item/[id]`, so their copy is a second original with a second
+  address. deleting ours cannot reach it, and a reader who follows them keeps
+  seeing it — attributed, still signed by us, still verifying.
+
+that last one is the whole trade. hosting means the author cannot unpublish
+what someone else chose to keep; the same property that survives the author
+going offline survives the author changing their mind.
+
 ## No Subscription Protocol
 
 a %keen for a revision that has not been grown yet parks in ames and fires

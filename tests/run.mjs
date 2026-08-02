@@ -16,6 +16,8 @@ const SCENARIOS = [
   { file: 'c2-gating.mjs', ships: [h.HOST, h.PEER, h.WITNESS],
     note: 'needs a second member — one member cannot show eviction is targeted' },
   { file: 'c3-forgery.mjs', ships: [h.HOST, h.PEER], note: 'needs %rogue running on the peer' },
+  { file: 'c5-delete.mjs', ships: [h.HOST, h.PEER, h.WITNESS],
+    note: 'needs a third ship — the reader that keeps both copies is the control' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its
   //  own assertions vacuously true.

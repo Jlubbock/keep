@@ -140,6 +140,18 @@
     ;button(type "submit", class "k-link k-re"): {label}
   ==
 ::
+++  delete-control
+  |=  [r=row back=tape label=tape]
+  ^-  (list manx)
+  ?.  =(our.v ship.entry.r)  ~
+  :_  ~
+  ;form(method "post", action "/keep", class "k-del-form", style "display:inline")
+    ;+  (hidden "what" "delete")
+    ;+  (hidden "id" (id-of entry.r))
+    ;+  (hidden "back" back)
+    ;button(type "submit", class "k-link k-del"): {label}
+  ==
+::
 ++  feed-row
   |=  [r=row back=tape]
   ^-  manx
@@ -165,6 +177,7 @@
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
+      ;*  (delete-control r back "×")
     ==
   ==
 ::
@@ -238,6 +251,7 @@
       ;*  ?~  site.r  ~
           :_  ~
           ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
+      ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
     ==
     ;*  ?~  bod  ~
         :_  ~

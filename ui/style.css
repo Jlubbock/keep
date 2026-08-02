@@ -102,6 +102,12 @@ form { margin: 0; }
 .k-row-in .k-re { margin-left: 8px; }
 .k-re:hover { color: #171614; }
 .k-re.on { color: #171614; cursor: default; }
+.k-del {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #ede9e0;
+}
+.k-row:hover .k-del { color: #ddd7ca; }
+.k-del:hover { color: #8a2f1f; }
+.k-row-in .k-del { margin-left: 8px; }
 
 /* ---- user feed header ------------------------------------------------- */
 
@@ -151,6 +157,8 @@ form { margin: 0; }
 .k-meta .re { color: #b3ac9f; }
 .k-meta .re.on { color: #171614; }
 .k-meta a:hover, .k-meta button:hover { color: #171614; }
+.k-meta .k-del { color: #b3ac9f; }
+.k-meta .k-del:hover { color: #8a2f1f; }
 
 .k-index-head {
   font-family: 'IBM Plex Mono', monospace; font-size: 17px; color: #171614;

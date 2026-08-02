@@ -28,6 +28,7 @@
 +$  action
   $%  [%post =page title=(unit @t) terms=@t to=(set lyst)]
       [%keep =entry to=(set lyst)]
+      [%delete =id]
       [%open =entry]
       ::
       [%list =lyst members=(set ship)]
@@ -54,6 +55,7 @@
   $%  [%wall entries=(list [via=feed =entry]) heads=(map entry head)]
       [%posted =id =entry]
       [%arrived via=feed =entry]
+      [%deleted =entry]
       [%head =entry =head]
       [%body =entry =page okay=(unit ?)]
       [%lists lists=(map lyst (set ship))]
