@@ -1,19 +1,6 @@
-::  /lib/keep-ui.hoon — every screen, server-rendered.
-::
-::  the agent hands this a +view: a flat projection of state with the joins
-::  already done. nothing in here touches gall, and nothing in here parses a
-::  page — markdown is rendered in the browser, because the agent is not
-::  allowed to learn what a body contains and neither is its renderer.
-::
-::  the stylesheet and the client script live in /ui at the repo root and are
-::  copied to /ui in the desk by build.sh. this file has to sit in /lib
-::  instead, because /+ resolves there and nowhere else.
-::
 /-  keep
 ::
 |%
-::  one feed line. via is the ship whose index we read it from, which is the
-::  reposter when it differs from the ship the entry names.
 ::
 +$  row
   $:  via=ship
@@ -22,6 +9,7 @@
       kept=?                             ::  have we syndicated it
       pub=?                              ::  did it reach us publicly
       site=(unit @t)                     ::  its url on the open web, if ours
+      okay=(unit ?)
   ==
 ::
 +$  view
@@ -54,10 +42,13 @@
 ++  pp  |=(who=ship ^-(tape (scow %p who)))
 ++  id-of  |=(e=entry:keep ^-(tape (trip (last path.e))))
 ::
-::  id first, ship last. eyre splits the LAST path segment on its final dot
-::  to make pork's ext — which is how /keep/style.css works — and a @uv id
-::  is full of dots. a @p never has one, so it is safe at the end.
+++  author
+  |=  r=row
+  ^-  ship
+  ?~(hed.r ship.entry.r who.u.hed.r)
 ::
+::  id first, ship last: eyre splits the LAST segment on its final dot to
+::  make pork's ext, and a @uv id is full of dots
 ++  read-url
   |=  e=entry:keep
   ^-  tape
@@ -118,7 +109,6 @@
       ;a(href "/keep/lists", class "{(sel %lists)}"): lists
     ==
     ;div.k-pals
-      ::  go to any ship's feed. slaw does the validating; nothing is sent.
       ;form(method "post", action "/keep", class "k-one k-find-form")
         ;+  (hidden "what" "go")
         ;+  (hidden "back" "/keep")
@@ -133,13 +123,6 @@
   ==
 ::
 ::  ---- rows ----------------------------------------------------------------
-::
-::  repost. the protocol has no un-keep — an index only grows — so this is a
-::  latch, not a toggle: once syndicated the glyph is lit and inert.
-::
-::  a pointer we read out of someone's private list is theirs to gate, and
-::  the agent crashes rather than republish it. no control is offered for
-::  one, because a button that is always refused is worse than no button.
 ::
 ++  repost-control
   |=  [r=row back=tape label=tape]
@@ -165,14 +148,11 @@
         ;div.k-via: ↻ {(pp via.r)}
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
-      ;a(href "/keep/ship/{(pp ship.entry.r)}", class "k-who"): {(pp ship.entry.r)}
+      ;a(href "/keep/ship/{(pp (author r))}", class "k-who"): {(pp (author r))}
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
       ;+  (repost-control r back "↻")
     ==
   ==
-::
-::  the author column is dropped on a user feed: the author is the page. a
-::  repost keeps its attribution line, pointing at whoever wrote it.
 ::
 ++  user-row
   |=  [r=row back=tape]
@@ -180,7 +160,7 @@
   ;div.k-row
     ;*  ?:  =(via.r ship.entry.r)  ~
         :_  ~
-        ;div.k-via: ↻ {(pp ship.entry.r)}
+        ;div.k-via: ↻ {(pp (author r))}
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
@@ -222,23 +202,14 @@
       ;*  %+  turn  rows
           |=(r=row (user-row r back))
     ==
-    ::  an empty feed means one of three things and they are not the same.
-    ::  following: the keen is parked, so blank is the truth. off: we asked
-    ::  and they nacked. otherwise nobody has ever asked — offer to, since
-    ::  a scry cannot answer it and only a poke can.
     ;*  ?:  ?=(^ rows)  ~
         ?:  =(who our.v)  ~
         ?:  (~(has in off.v) who)
           :_  ~
           ;div(class "k-note", data-state "off"): no keep
-        ::  we are reading them and nothing has come back. that is either an
-        ::  empty index or one still in flight, and we cannot tell which.
         ?:  (~(has in subs.v) who)
           :_  ~
           ;div(class "k-note", data-state "read"): nothing yet
-        ::  data-state is what the client watches: the answer lands in a
-        ::  later event, so it re-asks this page until the state moves off
-        ::  `unknown` and then shows it.
         :_  ~
         ;form(method "post", action "/keep", class "k-note k-check", data-state "unknown")
           ;+  (hidden "what" "check")
@@ -248,10 +219,6 @@
         ==
   ==
 ::
-::  the body arrives on its own schedule. when it is not here yet the article
-::  renders without one — blank is the honest state of an outstanding keen —
-::  and the client asks again until it lands.
-::
 ++  read-page
   |=  [r=row bod=(unit page)]
   ^-  manx
@@ -259,13 +226,14 @@
   ;article.k-read
     ;a(href "/keep", class "k-back"): ←
     ;h1.k-art-title: {(titled hed.r)}
+    ;*  ?.  =(`%.n okay.r)  ~
+        :_  ~
+        ;div.k-warn: ⚠ this does not match {(pp (author r))}'s signature — it may have been altered by whoever served it
     ;div.k-meta
-      ;a(href "/keep/ship/{(pp ship.entry.r)}"): {(pp ship.entry.r)}
+      ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
       ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
       ;+  %^  repost-control  r  (read-url entry.r)
           ?:(kept.r "↻ reposted" "↻ repost")
-      ::  the shareable link, for our own public posts. anyone can open it,
-      ::  which is the point, so it is shown plainly rather than announced.
       ;*  ?~  site.r  ~
           :_  ~
           ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
@@ -277,10 +245,6 @@
       ;+  nowt
     ==
   ==
-::
-::  the clearnet page. no sidebar, no nav, no chrome — a visitor came for one
-::  article and has no account here. rendered once at publish and handed to
-::  eyre, so this never runs on a request.
 ::
 ++  public-page
   |=  [r=row bod=page]
@@ -303,7 +267,7 @@
           ;a(href "/keep/index", class "k-back"): ←
           ;h1.k-art-title: {(titled hed.r)}
           ;div.k-meta
-            ;span: {(pp ship.entry.r)}
+            ;span: {(pp (author r))}
             ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
           ==
           ;div(id "k-src", hidden "", data-mark "{(trip p.bod)}"): {?:(?=(@ q.bod) (trip q.bod) "")}
@@ -314,9 +278,6 @@
       ==
     ==
   ==
-::
-::  the clearnet index: every post that has a url, newest first. cached at
-::  /keep/index and rebuilt on each publish, so it never runs on a request.
 ::
 ++  public-index
   |=  rows=(list row)
@@ -371,9 +332,6 @@
       ;+  nowt
     ==
   ==
-::
-::  a list name is a @tas — the protocol's, not the design's, so `close
-::  readers` is `close-readers`. expansion is a url rather than local state.
 ::
 ++  lists-page
   |=  open=(unit lyst:keep)

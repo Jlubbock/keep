@@ -1,62 +1,3 @@
-::  %keep — v0
-::
-::  ---------------------------------------------------------------------------
-::  ONE PRIMITIVE
-::  ---------------------------------------------------------------------------
-::  a list is a set of ships plus a salt. every list holds an index: a list of
-::  pointers, grown one revision per entry, each revision carrying the whole
-::  list so far.
-::
-::    %public   index lives at /index. the address is derivable from our @p,
-::              so nobody needs to be told it. no members, no push.
-::
-::    anything  index lives at /list/[key], one path PER MEMBER, where
-::    else      key = (shas salt [list ship]). unguessable, so the address is
-::              the capability. we grow the same pointers to every member's
-::              path separately.
-::
-::  bodies live once, hash-addressed at /item/[id], id = (sham [head page]).
-::  one store for public and gated alike — a body address is a content hash,
-::  so it cannot be found by anyone who was not handed a pointer to it. gating
-::  is entirely a question of who receives pointers, never of who can decrypt.
-::
-::  each item is grown TWICE, as /item/[id]/head and /item/[id]/body. an index
-::  entry names the prefix and is therefore NOT keenable as it stands: a reader
-::  appends /head or /body. heads are fetched eagerly on arrival, bodies only
-::  on %open, so tailing a writer costs the size of their titles rather than
-::  the size of their prose.
-::
-::  ---------------------------------------------------------------------------
-::  WHAT THIS BUYS
-::  ---------------------------------------------------------------------------
-::  revocation is free. evicting someone is not growing to their path again.
-::  no re-keying, no new address for anyone else, nobody else notices.
-::
-::  leaks are attributable. every member reads a different address, so a
-::  circulating subscription path names exactly one ship.
-::
-::  membership and publication are decoupled from the network. adding a member
-::  is one poke, once, ever. after that, publishing to a thousand-member list
-::  sends no messages at all — it is a thousand %grows into our own gall state,
-::  and the members' parked keens do the rest.
-::
-::  the exposure this does NOT cover: a member who leaks a body address rather
-::  than their index address. bodies are shared across members, so that leak is
-::  anonymous. catching it would mean a copy per member per post.
-::
-::  ---------------------------------------------------------------------------
-::  NO SUBSCRIPTION PROTOCOL
-::  ---------------------------------------------------------------------------
-::  a %keen for a revision that has not been grown yet parks in ames and fires
-::  when it is. the outstanding keen IS the subscription: durable across
-::  restarts, one @ud of state, nothing to negotiate. backfill and tailing are
-::  the same code path — start at revision 1, existing revisions answer from
-::  cache, the first one that does not parks, and you are subscribed.
-::
-::  ames carries exactly two things, both once per relationship and never per
-::  post: %announce (are you running %keep) and %invite (here is your address
-::  for my list). everything else is remote scry.
-::
 /-  keep
 /+  default-agent, dbug, srv=server, ui=keep-ui
 /*  style-css  %css  /ui/style/css
@@ -69,37 +10,39 @@
 +$  entry  entry:keep
 +$  feed   feed:keep
 ::
-::  the record behind a lyst. not called `list` — that shadows the stdlib mold
-::  in every arm of this file.
-::
+::  not `list`: that shadows the stdlib mold in every arm of this file
 +$  roster
   $:  members=(set ship)
       salt=@uvH
       log=(list entry)                 ::  what we have grown here, newest last
   ==
 ::
-+$  versioned-state  $%(state-0 state-1 state-2)
+::  frozen: what was actually written to disk. never change these.
++$  head-0  [wen=@da terms=@t title=(unit @t)]
++$  item-0  [head=head-0 =page]
+::
++$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4)
 ::
 +$  state-0
   $:  %0
-      posts=(map id item:keep)
+      posts=(map id item-0)
       lists=(map lyst roster)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
-      heads=(map entry head:keep)
+      heads=(map entry head-0)
       seen=(map entry page)
       off=(set ship)
   ==
 ::
 +$  state-1
   $:  %1
-      posts=(map id item:keep)
+      posts=(map id item-0)
       lists=(map lyst roster)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
-      heads=(map entry head:keep)
+      heads=(map entry head-0)
       seen=(map entry page)
       off=(set ship)
       sites=(map @t id)
@@ -107,36 +50,53 @@
 ::
 +$  state-2
   $:  %2
-      ::  ours
+      posts=(map id item-0)
+      lists=(map lyst roster)
+      subs=(map feed @ud)              ::  feed -> revision we are keened on
+      wall=(list [via=feed =entry])    ::  newest first
+      refs=(set entry)                 ::  every entry ever walled
+      heads=(map entry head-0)         ::  fetched eagerly
+      seen=(map entry page)            ::  fetched on %open
+      off=(set ship)                   ::  ships confirmed not running %keep
+      sites=(map @t id)
+      follows=(set ship)
+  ==
+::
++$  state-3
+  $:  %3
       posts=(map id item:keep)
       lists=(map lyst roster)
-      ::  theirs
-      subs=(map feed @ud)              ::  feed -> revision we are keened on
-      wall=(list [via=feed =entry])    ::  newest first — via is the index we
-                                       ::  read it from, not just the ship
-      refs=(set entry)                 ::  every entry ever walled. every index
-                                       ::  revision repeats the whole list, so
-                                       ::  without this backfill duplicates it.
-      heads=(map entry head:keep)      ::  fetched eagerly
-      seen=(map entry page)            ::  fetched on %open. a cache: bodies
-                                       ::  sit at permanent addresses, so
-                                       ::  anything cold can be dropped.
-      off=(set ship)                   ::  ships confirmed not running %keep
-      ::  the clearnet side: url path -> the post published there. eyre holds
-      ::  the rendered bytes; this is only what we need to know a slug is
-      ::  taken and to show an author their own link.
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
       sites=(map @t id)
-      ::  who we FOLLOW, which is not who we have a keen parked on. subs is
-      ::  mechanical — reading anyone's index puts an entry there, and that
-      ::  is how a visit reads a stranger without subscribing to them in any
-      ::  sense the reader would recognise. follows is the editorial choice,
-      ::  and it is the only thing the feed is built from.
       follows=(set ship)
+      checked=(map entry ?)
+      keeping=(map entry (set lyst))
+  ==
+::
++$  state-4
+  $:  %4
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry ?)
+      keeping=(map entry (set lyst))
   ==
 --
 ::
 %-  agent:dbug
-=|  state-2
+=|  state-4
 =*  state  -
 ^-  agent:gall
 =<
@@ -145,17 +105,9 @@
     def   ~(. (default-agent this %|) bowl)
     hc    ~(. +> bowl)
 ::
-::  announce to every pal, and watch for later ones. no keens yet — we do not
-::  know who is out there until they answer. an unbound scry path returns
-::  silence, never a no, so probing by keen would never terminate; a poke gets
-::  nacked, which is terminal and worth remembering.
-::  (scrying an agent is fine here; it is +on-load where it is not.)
-::
 ++  on-init
   ^-  (quip card _this)
   :_  this
-  ::  the cast matters: weld homogenizes on its first element, and a bare
-  ::  list of two differently-shaped cards would demand a list of the first.
   =/  boot=(list card)
     :~  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
         [%pass /pals %agent [our.bowl %pals] %watch /targets]
@@ -172,30 +124,56 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  ::  everyone we already had a keen parked on was, under the old model,
-  ::  someone we followed. seed follows from that so nobody's feed empties
-  ::  out on upgrade.
-  =/  new=state-2
+  ::
+  =/  new=state-4
     ?-  -.old
-      %2  old
+      %4  old
+    ::
+        %3
+      :*  %4
+          posts.old
+          (wipe-logs:hc lists.old)
+          subs.old
+          ~                              ::  wall
+          ~                              ::  refs
+          ~                              ::  heads
+          ~                              ::  seen
+          off.old  sites.old  follows.old
+          ~                              ::  checked
+          keeping.old
+      ==
+    ::
+        %2
+      :*  %4
+          ~                              ::  posts   — old heads
+          (wipe-logs:hc lists.old)       ::  logs    — pointed at those posts
+          subs.old
+          ~                              ::  wall    — refills from subs
+          ~                              ::  refs
+          ~                              ::  heads   — old shape
+          ~                              ::  seen    — unjudgeable without heads
+          off.old
+          ~                              ::  sites   — pointed at dropped posts
+          follows.old
+          ~                              ::  checked
+          ~                              ::  keeping
+      ==
     ::
         %1
-      :*  %2
-          posts.old  lists.old  subs.old  wall.old  refs.old
-          heads.old  seen.old   off.old   sites.old
+      :*  %4
+          ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
+          ~  ~
       ==
     ::
         %0
-      :*  %2
-          posts.old  lists.old  subs.old  wall.old  refs.old
-          heads.old  seen.old   off.old   ~
+      :*  %4
+          ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
+          ~  ~
       ==
     ==
   :_  this(state new)
-  ::  the index is rebuilt here as well as on publish, so it exists from
-  ::  install rather than only after the first post.
   :+  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
     (index-card:hc sites.new posts.new)
   assets:hc
@@ -207,12 +185,9 @@
     [%x %wall ~]   ``noun+!>(wall)
     [%x %heads ~]  ``noun+!>(heads)
     [%x %subs ~]   ``noun+!>(subs)
-  ::  what we have published. local only — on-peek is not reachable over
-  ::  ames, and this is the only way to see our own posts without +dbug.
     [%x %posts ~]  ``noun+!>(posts)
     [%x %lists ~]  ``noun+!>((members-of:hc lists))
   ::
-  ::  a whole item, if we hold both halves of it
       [%x %item @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
     =/  res=(unit item:keep)
@@ -230,19 +205,22 @@
   ?+    mark  (on-poke:def mark vase)
   ::
   ::  ---- local ---------------------------------------------------------------
-  ::  the mark IS the trust check: one test, not one per handler.
       %keep-action
     ?>  =(our.bowl src.bowl)
     =/  act  !<(action:keep vase)
     ?-    -.act
     ::
     ::  ---- publishing --------------------------------------------------------
-    ::  grow the head and the body once each, then append the prefix to every
-    ::  list named. no message leaves the ship.
         %post
-      =/  hed=head:keep  [now.bowl terms.act title.act]
+      =/  hash=@uvH      (sham page.act)
+      =/  lyfe=@ud       our-life:hc
+      =/  =id
+        (sain:keep our.bowl lyfe now.bowl terms.act title.act hash)
+      =/  hed=head:keep
+        :*  now.bowl  our.bowl  lyfe  terms.act  title.act  hash
+            (sign-id:hc lyfe id)
+        ==
       =/  =item:keep     [hed page.act]
-      =/  =id            (sham item)
       =/  spur=path      (item-spur:hc id)
       =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
       =^  cards  lists   (fan-out:hc entry ~(tap in to.act))
@@ -250,13 +228,11 @@
         :~  [%pass /grow %grow (welp spur /head) noun+hed]
             [%pass /grow %grow (welp spur /body) noun+page.act]
         ==
-      ::  and, if it is public, a page on the open web and a fresh index
       =/  new-posts  (~(put by posts) id item)
       =/  url=@t
         ?.  (~(has in to.act) %public)  ''
         (site-path:hc title.act)
-      ::  id:keep, not id — `=/ =id` above bound it as a face, so the bare
-      ::  mold is shadowed for the rest of this branch.
+      ::  id:keep, not id: `=/ =id` above shadows the bare mold here
       =/  new-sites=(map @t id:keep)
         ?:(=('' url) sites (~(put by sites) url id))
       =/  web=(list card)
@@ -264,38 +240,43 @@
         =/  art=card
           %+  cache:hc  url
           %-  manx-response:gen:srv
-          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url] page.act)
+          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~] page.act)
         ~[art (index-card:hc new-sites new-posts)]
       :_  this(posts new-posts, sites new-sites)
       :(weld grows cards web (give:hc [%posted id entry]))
     ::
-    ::  syndicate someone else's pointer. same operation, no body moves — our
-    ::  readers will resolve it at the ship the pointer names.
-    ::
-    ::  a pointer we read out of someone's private index is theirs to gate. we
-    ::  will not push it to %public, because a body address is unguessable only
-    ::  while nobody publishes it, and publishing it would be attributable to
-    ::  us. crash rather than ack: an ack that did nothing reads as success.
         %keep
       ?:  =(our.bowl ship.entry.act)  `this
       ?:  ?&  (~(has in to.act) %public)
               !(from-public:hc entry.act)
           ==
         ~|(%keep-would-expose-gated-address !!)
-      =^  cards  lists  (fan-out:hc entry.act ~(tap in to.act))
-      [cards this]
+      ?:  =(`%.n (~(get by checked) entry.act))
+        ~|(%keep-would-syndicate-forgery !!)
+      ?~  bod=(~(get by seen) entry.act)
+        =/  more=(list card)
+          ?:((~(has by heads) entry.act) ~ ~[(fetch-head:hc entry.act)])
+        :_  this(keeping (~(put by keeping) entry.act to.act))
+        (weld more ~[(fetch-body:hc entry.act)])
+      ?~  hed=(~(get by heads) entry.act)
+        :_  this(keeping (~(put by keeping) entry.act to.act))
+        ~[(fetch-head:hc entry.act)]
+      =/  m  (mirror:hc u.hed u.bod ~(tap in to.act))
+      :-  cards.m
+      %=  this
+        lists    lists.m
+        posts    posts.m
+        keeping  (~(del by keeping) entry.act)
+      ==
     ::
     ::  ---- reading -----------------------------------------------------------
-    ::  a body, on demand. if it is already cached this is just a re-gift to
-    ::  whoever is watching that pane.
         %open
       ?^  got=(~(get by seen) entry.act)
-        :_(this (give:hc [%body entry.act u.got]))
+        :_  this
+        (give:hc [%body entry.act u.got (~(get by checked) entry.act)])
       :_(this ~[(fetch-body:hc entry.act)])
     ::
     ::  ---- lists -------------------------------------------------------------
-    ::  upsert: create if new, then set membership to exactly what was named.
-    ::  admits and evicts fall out of the diff.
         %list
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
       =/  lst=roster
@@ -310,8 +291,6 @@
       :_  this(lists all)
       (weld hail (give:hc (lists-of:hc all)))
     ::
-    ::  admit: mint their address, grow them the backlog in one revision, and
-    ::  tell them where it is. the only message membership ever costs.
         %admit
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
       ?~  got=(~(get by lists) lyst.act)  ~|([%keep-no-such-list lyst.act] !!)
@@ -326,9 +305,6 @@
       :_  this(lists all)
       (weld hail (give:hc (lists-of:hc all)))
     ::
-    ::  evict: stop growing to their address. that is the whole operation —
-    ::  no rekey, no new address for anyone else, nobody else notices. %tomb
-    ::  their existing revisions too if you want the backlog gone as well.
         %evict
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
       ?~  got=(~(get by lists) lyst.act)  ~|([%keep-no-such-list lyst.act] !!)
@@ -339,8 +315,6 @@
       (give:hc (lists-of:hc all))
     ::
     ::  ---- following ---------------------------------------------------------
-    ::  follow. the keen may already be parked from a visit — following is
-    ::  the editorial act, and it is what the feed reads.
         %sub
       =/  f=feed  [who.act /index]
       =/  at=@ud  (~(gut by subs) f first)
@@ -350,9 +324,6 @@
       :-  (tail:hc f at)
       (give:hc (peers-of:hc ss off))
     ::
-    ::  unfollow drops them from the feed and leaves the keen parked, so
-    ::  their page still reads. dropping the sub too would make unfollow a
-    ::  second, invisible decision about whether you can still visit them.
         %unsub
       =/  ff  (~(del in follows) who.act)
       :_  this(follows ff)
@@ -360,23 +331,17 @@
     ==
   ::
   ::  ---- the interface -------------------------------------------------------
-  ::  every screen and every button. the whole handler is state-free: reads
-  ::  build a page, writes poke us back with the same action a dojo poke
-  ::  would send, so there is exactly one implementation of each.
       %handle-http-request
     =+  !<([rid=@ta ir=inbound-request:eyre] vase)
     :_  this
     (serve:hc rid ir)
   ::
   ::  ---- network -------------------------------------------------------------
-  ::  remote only, for the same structural reason.
       %keep-gossip
     ?>  !=(our.bowl src.bowl)
     =/  gos  !<(gossip:keep vase)
     ?-    -.gos
     ::
-    ::  someone admitted us to one of their lists. tail it like any other
-    ::  index — the address differs, nothing else does.
         %invite
       =/  f=feed  [src.bowl path.gos]
       ?:  (~(has by subs) f)  `this
@@ -385,9 +350,6 @@
       :-  (tail:hc f first)
       (give:hc (peers-of:hc ss off))
     ::
-    ::  someone just installed %keep. we ack by not crashing, which is what
-    ::  tells them we are running it too. we tail their public index back only
-    ::  if they are ours — it is public either way.
         %announce
       =/  f=feed  [src.bowl /index]
       ?.  &((~(has in targets:hc) src.bowl) !(~(has by subs) f))
@@ -405,21 +367,16 @@
   ^-  (quip card _this)
   ?>  =(our.bowl src.bowl)
   ?+    path  (on-watch:def path)
-  ::  eyre, waiting on a response we are about to give it
       [%http-response *]  `this
-  ::  the firehose. consumers scry for initial state.
       [%updates ~]   `this
       [%ui %wall ~]   :_(this ~[(gift:hc wall-now:hc)])
       [%ui %lists ~]  :_(this ~[(gift:hc lists-now:hc)])
       [%ui %peers ~]  :_(this ~[(gift:hc peers-now:hc)])
   ::
-  ::  the deliberate exception: nothing to gift means the keen is outstanding,
-  ::  which is the honest state of a scry that may never resolve. do not fake
-  ::  a loading value.
       [%ui %body @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
     ?~  got=(~(get by seen) e)  `this
-    :_(this ~[(gift:hc [%body e u.got])])
+    :_(this ~[(gift:hc [%body e u.got (~(get by checked) e)])])
   ==
 ::
 ++  on-agent
@@ -427,19 +384,13 @@
   ^-  (quip card _this)
   ?+    wire  (on-agent:def wire sign)
   ::
-  ::  an ack means %keep runs there; a nack means it does not, and that stays
-  ::  true until they announce to us, so we record it and never ask again.
       [?(%hey %ask) @ ~]
     ?.  ?=(%poke-ack -.sign)  `this
     =/  who=ship  (slav %p i.t.wire)
-    ::  a nack is terminal and cacheable: they do not run %keep.
     ?^  p.sign
       =/  oo  (~(put in off) who)
       :_  this(off oo)
       (give:hc (peers-of:hc subs oo))
-    ::  an ack means they do. tail them either way — that is what makes a
-    ::  visit readable — but only enrol them in the feed if we were the one
-    ::  reaching out, on /hey. /ask is someone looking, not subscribing.
     =/  f=feed  [who /index]
     =/  ss      (~(put by subs) f first)
     =/  ff      ?:(?=(%hey i.wire) (~(put in follows) who) follows)
@@ -447,15 +398,12 @@
     :-  (tail:hc f first)
     (give:hc (peers-of:hc ss off))
   ::
-  ::  a poke we sent ourselves on behalf of a click. a nack is a refusal the
-  ::  agent made on purpose, and the only place it can be reported is here.
       [%self ~]
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
     %-  (slog leaf+"keep: refused" u.p.sign)
     `this
   ::
-  ::  an invite they refused is theirs to refuse. we stay grown to their path.
       [%poke @ ~]
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
@@ -480,47 +428,81 @@
   ?:  ?=([%eyre %bound *] sign-arvo)
     ~?  !accepted.sign-arvo  %keep-eyre-rejected-binding
     `this
-  ::  a keen comes back as %sage on this kernel, not %tune. the payload is
-  ::  the grown page itself — q.sage — so the value is q.q.sage, one level
-  ::  shallower than a roar's.
+  ::  a keen returns %sage, not %tune; the value is q.q.sage
   ?.  ?=([%ames %sage *] sign-arvo)  (on-arvo:def wire sign-arvo)
   =/  =sage:mess:ames  sage.sign-arvo
   ?+    wire  `this
   ::
   ::  ---- a head --------------------------------------------------------------
-  ::  the eager half. tens of bytes, and everything a shelf of titles needs.
+  ::
       [%head @ *]
     ?:  ?=(~ q.sage)  `this
-    =/  e=entry        [(slav %p i.t.wire) t.t.wire]
-    =/  hed=head:keep  ;;(head:keep q.q.sage)
-    :_  this(heads (~(put by heads) e hed))
-    (give:hc [%head e hed])
+    =/  e=entry  [(slav %p i.t.wire) t.t.wire]
+    ::  ;; is a hard cast; +mule installs a null scry gate, nothing inside may .^
+    =/  res  (mule |.(;;(head:keep q.q.sage)))
+    ?:  ?=(%| -.res)
+      %-  (slog leaf+"keep: unreadable head from {<ship.e>}" ~)
+      `this
+    =/  hed=head:keep  p.res
+    =/  late=(unit ?)
+      ?:  (~(has by checked) e)  ~
+      ?~  bod=(~(get by seen) e)  ~
+      ?~  want=(slaw %uv (last-of:hc path.e))  `%.n
+      (sound:hc hed u.bod u.want)
+    =/  vote=(unit ?)  ?^(late late (~(get by checked) e))
+    =/  done
+      ?:  =(`%.n vote)  ~
+      ?~  bod=(~(get by seen) e)  ~
+      (finish:hc e hed u.bod)
+    :_  %=  this
+          heads    (~(put by heads) e hed)
+          checked  ?~(late checked (~(put by checked) e u.late))
+          lists    ?~(done lists lists.u.done)
+          posts    ?~(done posts posts.u.done)
+          keeping  ?:(|(=(`%.n vote) ?=(^ done)) (~(del by keeping) e) keeping)
+        ==
+    %+  weld  (give:hc [%head e hed])
+    ?~(done ~ cards.u.done)
   ::
   ::  ---- a body --------------------------------------------------------------
-  ::  only ever because someone opened it.
       [%body @ *]
     ?:  ?=(~ q.sage)  `this
-    =/  e=entry     [(slav %p i.t.wire) t.t.wire]
-    =/  bod=page    ;;(page q.q.sage)
-    :_  this(seen (~(put by seen) e bod))
-    (give:hc [%body e bod])
+    =/  e=entry  [(slav %p i.t.wire) t.t.wire]
+    =/  res  (mule |.(;;(page q.q.sage)))
+    ?:  ?=(%| -.res)
+      %-  (slog leaf+"keep: unreadable body from {<ship.e>}" ~)
+      `this
+    =/  bod=page  p.res
+    =/  okay=(unit ?)  (judge:hc e bod)
+    =/  done
+      ?:  =(`%.n okay)  ~
+      ?~  hed=(~(get by heads) e)  ~
+      (finish:hc e u.hed bod)
+    :_  %=  this
+          seen     (~(put by seen) e bod)
+          checked  ?~(okay checked (~(put by checked) e u.okay))
+          lists    ?~(done lists lists.u.done)
+          posts    ?~(done posts posts.u.done)
+          keeping  ?:(|(=(`%.n okay) ?=(^ done)) (~(del by keeping) e) keeping)
+        ==
+    %+  weld  (give:hc [%body e bod okay])
+    ?~(done ~ cards.u.done)
   ::
   ::  ---- an index revision ---------------------------------------------------
-  ::  identical whether this is a public index or a private one. the address
-  ::  differs; nothing else does.
       [%feed @ @ *]
     =/  at=@ud    (slav %ud i.t.wire)
     =/  f=feed    [(slav %p i.t.t.wire) t.t.t.wire]
-    ::  no value. a roar distinguished "ames gave up" from a signed proof of
-    ::  absence; %sage collapses both into one empty q, so we cannot tell a
-    ::  tombstone from a failure. step over it: stalling on a tombstoned
-    ::  revision would be silent and permanent, where losing one revision to
-    ::  a transient failure is at least visible as a gap.
+    ::  %sage collapses tombstone and failure into one empty q; step over
+    ::  it rather than stall forever on a revision that will never come
     ?:  ?=(~ q.sage)
       :_  this(subs (~(put by subs) f +(at)))
       ~[(tail:hc f +(at))]
-    =/  new=(list entry)
-      (skip ;;((list entry) q.q.sage) ~(has in refs))
+    =/  got  (mule |.(;;((list entry) q.q.sage)))
+    ?:  ?=(%| -.got)
+      %-  (slog leaf+"keep: unreadable index from {<ship.f>}" ~)
+      :_  this(subs (~(put by subs) f +(at)))
+      ~[(tail:hc f +(at))]
+    =/  new=(list entry)  (skip p.got ~(has in refs))
     =/  fresh=(set entry)  (sy new)
     =/  fold=(list [via=feed =entry])
       (flop (turn new |=(e=entry [f e])))
@@ -539,25 +521,18 @@
 ++  on-fail   on-fail:def
 --
 ::
-::  =========================================================================
 |_  =bowl:gall
 ::
-::  %pals is a dependency, not a requirement: without it we simply know
-::  nobody. %gu says whether the agent is running, and unlike %gx it does not
-::  crash the event when it is not.
-::
+::  %gu not %gx: %gu says whether pals runs without crashing if it does not
 ++  targets
   ^-  (set ship)
   ?.  .^(? %gu /(scot %p our.bowl)/pals/(scot %da now.bowl)/$)  ~
   .^((set ship) %gx /(scot %p our.bowl)/pals/(scot %da now.bowl)/targets/noun)
 ::
 ::  ---- folds ------------------------------------------------------------
-::  these two are spelled out rather than written with ~(run in ...) or
-::  ~(run by ...). a feed and a roster both contain a path, which is a
-::  recursive mold, and run is a wet gate whose product type is inferred:
-::  feed that inference into a second wet gate — uni, or !> on the result —
-::  and mint memes on it. an explicit fold is cast at every step.
 ::
+::  spelled out, not ~(run by ...): feed/roster hold a path, which is
+::  recursive, and run is a wet gate whose product type is inferred over it
 ++  ships-of
   |=  s=(map feed @ud)
   ^-  (set ship)
@@ -574,6 +549,14 @@
   ?~  ls  ~
   (~(put by $(ls t.ls)) p.i.ls members.q.i.ls)
 ::
+++  wipe-logs
+  |=  m=(map lyst roster)
+  ^-  (map lyst roster)
+  =/  ls=(list [p=lyst q=roster])  ~(tap by m)
+  |-  ^-  (map lyst roster)
+  ?~  ls  ~
+  (~(put by $(ls t.ls)) p.i.ls q.i.ls(log ~))
+::
 ++  known
   ^-  (set ship)
   =/  reached=(set ship)  (ships-of subs)
@@ -581,33 +564,17 @@
 ::
 ++  unreached  |=(saw=(set ship) ~(tap in (~(dif in targets) saw)))
 ::
-::  /g/x/[rev]/keep//1/[...] — the empty element means gall published it,
-::  the 1 is the mandatory path-format version. %keep is the protocol's agent
-::  name, ours and theirs alike, so it is a constant rather than dap.bowl.
-::
-::  both cast to path, and the cast earns its keep: %1 is a @ud constant, not
-::  a term, so the path-format version has to be written (scot %ud 1) — the
-::  knot '1'. spelled %1 it is the ATOM 1, a 0x01 byte in the path, which no
-::  cast would catch and no keen would ever resolve.
-::
-::  concatenate these with welp, never weld: weld homogenizes on its first
-::  element and would demand a (list %g).
-::
-::  gall numbers the first %grow at a path as revision 1, not 0 — revision
-::  0 is unbound, and an unbound remote scry path returns silence rather
-::  than a refusal, so keening it parks forever. every cursor starts here.
-::
+::  gall numbers the first %grow at a path 1; revision 0 is unbound
 ++  first  1
 ::
 ++  base
   |=  rev=@ud
   ^-  path
+  ::  welp not weld: weld homogenizes on its first element
+  ::  (scot %ud 1) not %1: %1 is the atom 1, an 0x01 byte in the path
   ~[%g %x (scot %ud rev) %keep %$ (scot %ud 1)]
 ::
 ++  item-spur  |=(=id ^-(path /item/[(scot %uv id)]))
-::
-::  one address per member. the salt is per-list, so holding one member's
-::  address for one list tells you nothing about any other address anywhere.
 ::
 ++  member-spur
   |=  [=lyst salt=@uvH who=ship]
@@ -615,14 +582,8 @@
   ?:  =(%public lyst)  /index
   /list/[(scot %uv (shas salt (jam [lyst who])))]
 ::
-::  minting on first use, so posting to a new list is one poke. never bunt a
-::  salt — a zero salt makes every member address derivable by anyone who
-::  knows the scheme, which is the whole gate gone.
-::
+::  never bunt a salt: a zero salt makes every member address derivable
 ++  mint  |=(=lyst ^-(@uvH (sham (mix eny.bowl (jam lyst)))))
-::
-::  the sample is e, not =entry: a =mold face shadows that mold for the whole
-::  arm, and this body needs `entry` as a mold, in (list entry).
 ::
 ++  fan-out
   |=  [e=entry to=(list lyst)]
@@ -647,9 +608,6 @@
   =^  more  lsts  $(to t.to, lsts (~(put by lsts) i.to lst(log new)))
   [(weld cs more) lsts]
 ::
-::  a new member's whole cost: one revision at their address carrying the
-::  backlog, and one poke telling them where to read it.
-::
 ++  welcome
   |=  [=lyst salt=@uvH log=(list entry) who=ship]
   ^-  (list card)
@@ -659,9 +617,6 @@
       [[who %keep] %poke %keep-gossip !>(`gossip:keep`[%invite lyst spur])]
   ==
 ::
-::  did this pointer reach us through a public index? only then is it ours
-::  to put in front of everyone.
-::
 ++  from-public
   |=  e=entry
   ^-  ?
@@ -670,11 +625,6 @@
   ?~  w  %.n
   ?:  &(=(e entry.i.w) =(/index path.via.i.w))  %.y
   $(w t.w)
-::
-::  the same poke on two wires. /hey is us announcing to a pal, and an ack
-::  there means we follow them back. /ask is a visitor checking whether a
-::  ship runs %keep at all — same question, but the answer must not enrol
-::  them in anything.
 ::
 ++  announce  (hail /hey)
 ++  probe     (hail /ask)
@@ -692,15 +642,11 @@
   :^  %pass  [%feed (scot %ud at) (scot %p ship.f) path.f]  %keen
   [%.n ship.f (welp (base at) path.f)]
 ::
-::  %yawn needs the same wire the keen went out on
 ++  halt
   |=  [f=feed at=@ud]
   ^-  card
   :^  %pass  [%feed (scot %ud at) (scot %p ship.f) path.f]  %arvo
   [%a %yawn ship.f (welp (base at) path.f)]
-::
-::  an entry is a prefix. the two halves are separate publications and are
-::  fetched on separate wires, at different times, for different reasons.
 ::
 ++  fetch-head
   |=  e=entry
@@ -714,22 +660,80 @@
   :^  %pass  [%body (scot %p ship.e) path.e]  %keen
   [%.n ship.e (welp path.e /body)]
 ::
-::  ---- clearnet --------------------------------------------------------------
-::  a public post is rendered once, at publish, and handed to eyre with its
-::  auth flag off. eyre serves those bytes to anyone who has the link and
-::  never wakes this agent to do it. nothing here is a route.
+::  ---- provenance ------------------------------------------------------------
 ::
-::  only %public reaches clearnet. a post to a private list has no url, which
-::  is the same gate as everything else in this agent: who gets the pointer.
+++  our-life
+  ^-  @ud
+  .^(@ud %j /(scot %p our.bowl)/life/(scot %da now.bowl)/(scot %p our.bowl))
+::
+++  sign-id
+  |=  [lyfe=@ud =id]
+  ^-  @ux
+  =/  sec=@
+    .^(@ %j /(scot %p our.bowl)/vein/(scot %da now.bowl)/(scot %ud lyfe))
+  (sigh:as:(nol:nu:crub:crypto sec) id)
+::
+::  jael's %deed BLOCKS for an unknown ship, a life ahead of theirs, or an
+::  old life it no longer keeps — and who/lyfe come from a stranger's head.
+::  %lyfe answers for anybody, so gate on that first.
+++  pass-of
+  |=  [who=@p lyfe=@ud]
+  ^-  (unit @)
+  =/  us=@ta   (scot %p our.bowl)
+  =/  wen=@ta  (scot %da now.bowl)
+  =/  him=@ta  (scot %p who)
+  =/  lyf=(unit @ud)  .^((unit @ud) %j /[us]/lyfe/[wen]/[him])
+  ?~  lyf  ~
+  ?.  =(lyfe u.lyf)  ~
+  =/  ded  .^([@ud pas=@ *] %j /[us]/deed/[wen]/[him]/(scot %ud lyfe))
+  `pas.ded
+::
+++  judge
+  |=  [e=entry bod=page]
+  ^-  (unit ?)
+  ?:  =(our.bowl ship.e)  ~
+  ?~  hed=(~(get by heads) e)  ~
+  ?~  want=(slaw %uv (last-of path.e))  `%.n
+  (sound u.hed bod u.want)
+::
+++  sound
+  |=  [hed=head:keep bod=page want=@uvH]
+  ^-  (unit ?)
+  ?.  =(hash.hed (sham bod))  `%.n
+  =/  =id:keep
+    (sain:keep who.hed lyfe.hed wen.hed terms.hed title.hed hash.hed)
+  ?.  =(id want)  `%.n
+  ?~  pas=(pass-of who.hed lyfe.hed)  ~
+  `(safe:as:(com:nu:crub:crypto u.pas) sig.hed id)
+::
+::  ---- hosting ---------------------------------------------------------------
+::
+++  mirror
+  |=  [hed=head:keep bod=page to=(list lyst)]
+  ^-  [cards=(list card) lists=(map lyst roster) posts=(map id item:keep)]
+  =/  =id:keep
+    (sain:keep who.hed lyfe.hed wen.hed terms.hed title.hed hash.hed)
+  =/  spur=path   (item-spur id)
+  =/  mine=entry  [our.bowl (welp (base first) spur)]
+  =^  cards  lists  (fan-out mine to)
+  =/  grows=(list card)
+    :~  [%pass /grow %grow (welp spur /head) noun+hed]
+        [%pass /grow %grow (welp spur /body) noun+bod]
+    ==
+  [(weld grows cards) lists (~(put by posts) id [hed bod])]
+::
+++  finish
+  |=  [e=entry hed=head:keep bod=page]
+  ^-  (unit [cards=(list card) lists=(map lyst roster) posts=(map id item:keep)])
+  ?~  to=(~(get by keeping) e)  ~
+  `(mirror hed bod ~(tap in u.to))
+::
+::  ---- clearnet --------------------------------------------------------------
 ::
 ++  cache
   |=  [url=@t pay=simple-payload:http]
   ^-  card
   [%pass /eyre/cache %arvo %e %set-response url `[%.n %payload pay]]
-::
-::  these are the same urls the private app already references. caching them
-::  unauthenticated means one copy serves both, and the agent stops being
-::  woken for its own stylesheet.
 ::
 ++  assets
   ^-  (list card)
@@ -737,19 +741,12 @@
       (cache '/keep/app.js' (js-response:gen:srv (as-octs:mimes:html app-js)))
   ==
 ::
-::  a cached url shadows the %connect binding, so a slug that collides with
-::  an app route would take it over. the index is reserved for the same
-::  reason: it is a page, not a post.
-::
 ++  reserved
   ^-  (set @t)
   %-  sy
   :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
       '/keep/ship'   '/keep/style.css'  '/keep/app.js'
   ==
-::
-::  the title, lowercased, everything else collapsed to one hyphen. the
-::  agent is allowed to touch a title — it is asserted metadata, not prose.
 ::
 ++  slugify
   |=  t=@t
@@ -782,11 +779,6 @@
   ?.  |((~(has by sites) try) (~(has in reserved) try))  try
   $(n +(n))
 ::
-::  the index, newest first, built from whatever has a url. it is rebuilt
-::  whole on every publish — it is a list of titles, and deltas would be
-::  noise. both maps are passed in because at publish time state holds
-::  neither the new post nor its url yet.
-::
 ++  public-rows
   |=  [ss=(map @t id) ps=(map id item:keep)]
   ^-  (list row:ui)
@@ -796,7 +788,7 @@
     ?~  ls  ~
     ?~  got=(~(get by ps) q.i.ls)  $(ls t.ls)
     =/  e=entry  [our.bowl (welp (base first) (item-spur q.i.ls))]
-    [[our.bowl e `head.u.got %.y %.n `p.i.ls] $(ls t.ls)]
+    [[our.bowl e `head.u.got %.y %.n `p.i.ls ~] $(ls t.ls)]
   (by-date rs)
 ::
 ++  index-card
@@ -817,15 +809,8 @@
   $(ls t.ls)
 ::
 ::  ---- the interface ---------------------------------------------------------
-::  a projection of state, flat, with the joins done. the ui library gets
-::  this and nothing else — no bowl, no cards, no state.
 ::
 ++  vw  ~(. ui view-now)
-::
-::  for rendering outside a request. +view-now scries %pals to build the
-::  sidebar, and a publish must not depend on another agent being up — a
-::  failed scry would nack the poke and lose the post. the clearnet page
-::  has no sidebar, so it needs none of it.
 ::
 ++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~])
 ::
@@ -839,15 +824,6 @@
       off
       roll-list
   ==
-::
-::  %public is a list in state, because posting to it mints it like any
-::  other. it is not a list in the interface: it is the word `everyone`,
-::  and it has no members to show.
-::
-::  pals we can actually read. every pal gets announced to at install and
-::  whenever the targets list changes, so in steady state each one has either
-::  acked — and is in subs — or nacked into off. listing the rest would put
-::  names in the sidebar that go nowhere.
 ::
 ++  live-pals
   ^-  (list ship)
@@ -873,10 +849,13 @@
   ?~  t.p  i.p
   $(p t.p)
 ::
-::  have we syndicated this entry to any list of ours
 ++  kept
   |=  e=entry
   ^-  ?
+  =/  mine=?
+    ?~  i=(slaw %uv (last-of path.e))  %.n
+    (~(has by posts) u.i)
+  ?:  mine  %.y
   =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
   |-  ^-  ?
   ?~  ls  %.n
@@ -890,10 +869,6 @@
   ?:  =(i.es e)  %.y
   $(es t.es)
 ::
-::  heads holds what we fetched from other people. our own head never went
-::  through a keen — it is in posts, next to the body — so both lookups have
-::  to fork on whose entry it is.
-::
 ++  head-of
   |=  e=entry
   ^-  (unit head:keep)
@@ -905,15 +880,7 @@
 ++  row-of
   |=  [via=ship e=entry]
   ^-  row:ui
-  [via e (head-of e) (kept e) (from-public e) (site-of e)]
-::
-::  the feed is what we follow. everything else we hold — visits, checks,
-::  ships we were invited by — stays on the wall and off the front page.
-::
-::  an entry is walled once, under whichever index delivered it first, so
-::  via alone is the wrong test: a post BY someone we follow that reached us
-::  through someone we later unfollowed would vanish with them. match either
-::  end — the ship that wrote it, or the ship that passed it on.
+  [via e (head-of e) (kept e) (from-public e) (site-of e) (~(get by checked) e)]
 ::
 ++  feed-rows
   ^-  (list row:ui)
@@ -927,9 +894,6 @@
     $(w t.w)
   [(row-of ship.via.i.w entry.i.w) $(w t.w)]
 ::
-::  a ship's feed IS their index as we have read it: their own posts and
-::  whatever they syndicated, in the order it arrived.
-::
 ++  user-rows
   |=  who=ship
   ^-  (list row:ui)
@@ -941,9 +905,6 @@
   ?.  =(who ship.via.i.w)  $(w t.w)
   [(row-of ship.via.i.w entry.i.w) $(w t.w)]
 ::
-::  ours is the one feed we cannot read off the wall — we never tail
-::  ourselves. it is what we wrote plus what we passed on.
-::
 ++  own-rows
   ^-  (list row:ui)
   =/  ps=(list [p=id q=item:keep])  ~(tap by posts)
@@ -951,7 +912,7 @@
     |-  ^-  (list row:ui)
     ?~  ps  ~
     =/  e=entry  [our.bowl (welp (base first) (item-spur p.i.ps))]
-    [[our.bowl e `head.q.i.ps %.y %.n (site-of e)] $(ps t.ps)]
+    [[our.bowl e `head.q.i.ps %.y %.n (site-of e) ~] $(ps t.ps)]
   =/  theirs=(list row:ui)
     =/  es=(list entry)  ~(tap in kept-entries)
     |-  ^-  (list row:ui)
@@ -970,9 +931,6 @@
   |-  ^-  (set entry)
   ?~  es  rest
   (~(put in $(es t.es)) i.es)
-::
-::  insertion sort, newest first. spelled out rather than +sort so nothing
-::  wet is inferring a type over a row.
 ::
 ++  by-date
   |=  rs=(list row:ui)
@@ -994,9 +952,6 @@
   ^-  @da
   ?~  hed.r  *@da
   wen.u.hed.r
-::
-::  our own bodies never went through a keen, so they are in posts, not in
-::  seen. everyone else's are in seen or nowhere yet.
 ::
 ++  body-of
   |=  e=entry
@@ -1039,10 +994,6 @@
     ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
     (render rid (user-page:vw u.who (user-rows u.who)))
   ::
-  ::  opening an article is what asks for the body. the page renders either
-  ::  way; the keen lands later or never.
-  ::  /keep/read/[id]/[ship] — the id is dotted, so it cannot be the last
-  ::  segment or eyre reads its tail as a file extension.
       [%keep %read @ @ ~]
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
     =/  e=entry  [u.who (welp (base first) /item/[i.t.t.seg])]
@@ -1059,27 +1010,19 @@
   ^-  (list card)
   (give-simple-payload:app:srv rid pay)
 ::
-::  not +html: that name shadows zuse's html core, and this file asks it
-::  for de-purl and mimes a few lines up.
-::
+::  not +html: that name shadows zuse's html core, used for de-purl below
 ++  render
   |=  [rid=@ta man=manx]
   ^-  (list card)
   (paint rid (manx-response:gen:srv man))
 ::
-::  positional, not k= and v=: quay's faces are p and q, and a bare pair
-::  nests either way.
-::
+::  positional, not k= and v=: quay's faces are p and q
 ++  arg
   |=  [q=(list [@t @t]) key=@t]
   ^-  @t
   ?~  q  ''
   ?:  =(key -.i.q)  +.i.q
   $(q t.q)
-::
-::  every write is the same action a dojo poke would send, sent to
-::  ourselves. the guard on %keep-action is =(our src), which a self-poke
-::  satisfies, and a refusal nacks in +on-agent rather than here.
 ::
 ++  self
   |=  act=action:keep
@@ -1095,8 +1038,6 @@
     ?~(got ~ u.got)
   =/  what=@t  (arg q 'what')
   =/  back=@t  (arg q 'back')
-  ::  search. purely navigational — slaw validates the name and we go look
-  ::  at whatever we already hold. no packet leaves the ship.
   ?:  =('go' what)
     %+  paint  rid
     %-  bounce
@@ -1107,10 +1048,7 @@
     (paint rid [[200 ~] ~])
   (paint rid (bounce ?:(=('' back) '/keep' back)))
 ::
-::  303, not the 307 that +redirect:gen gives: 307 preserves the method, so
-::  the browser re-POSTs the same form to the target and the write happens
-::  again, and again. 303 sends it back as a GET.
-::
+::  303 not 307: 307 preserves the method and re-POSTs the form on refresh
 ++  bounce
   |=  url=@t
   ^-  simple-payload:http
@@ -1124,8 +1062,6 @@
     ?:  =('' bod)  ~
     =/  tit=@t  (arg q 'title')
     =/  to=@t   (arg q 'to')
-    ::  cast, or the two branches stay a fork of two different unit types
-    ::  and u.aud has no single type to resolve in.
     =/  aud=(unit lyst)
       ?:(=('everyone' to) `%public (slaw %tas to))
     ?~  aud  ~
@@ -1139,10 +1075,6 @@
     =/  e=entry  [u.who (welp (base first) /item/[(arg q 'id')])]
     (self [%keep e (sy ~[%public])])
   ::
-  ::  the one place a click sends a packet to a stranger, and it is the only
-  ::  thing that can answer "do they run %keep": a scry returns silence for
-  ::  an unbound path, a poke nacks. the ack lands in +on-agent on /hey and
-  ::  files them in subs or off.
   ?:  =('check' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
     ?:  =(our.bowl u.who)  ~
@@ -1173,8 +1105,6 @@
   ~
 ::
 ::  ---- telling the local ship ------------------------------------------------
-::  state changes in three unrelated places. one router, so none of them has
-::  to know who is listening.
 ::
 ++  give
   |=  u=update:keep
@@ -1195,11 +1125,6 @@
     %peers    /ui/peers
     %body     (welp /ui/body/[(scot %p ship.entry.u)] path.entry.u)
   ==
-::
-::  the whole-state cases, each the answer to "what does a duct joining this
-::  path need before it can render anything at all". the -of arms take the
-::  state explicitly, because a handler broadcasting a change has the new
-::  value in hand and hc still holds the old one.
 ::
 ++  lists-of
   |=  m=(map lyst roster)
