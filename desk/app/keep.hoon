@@ -1,5 +1,5 @@
 /-  keep
-/+  default-agent, dbug, srv=server, ui=keep-ui
+/+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
 ::
@@ -187,6 +187,10 @@
     [%x %subs ~]   ``noun+!>(subs)
     [%x %posts ~]  ``noun+!>(posts)
     [%x %lists ~]  ``noun+!>((members-of:hc lists))
+  ::  ~ is not %.n: unjudged and forged are different answers
+    [%x %checked ~]  ``noun+!>(checked)
+  ::  subs is who we tail, mechanically; follows is whose posts we asked for
+    [%x %follows ~]  ``noun+!>(follows)
   ::
       [%x %item @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
@@ -564,26 +568,11 @@
 ::
 ++  unreached  |=(saw=(set ship) ~(tap in (~(dif in targets) saw)))
 ::
-::  gall numbers the first %grow at a path 1; revision 0 is unbound
-++  first  1
-::
-++  base
-  |=  rev=@ud
-  ^-  path
-  ::  welp not weld: weld homogenizes on its first element
-  ::  (scot %ud 1) not %1: %1 is the atom 1, an 0x01 byte in the path
-  ~[%g %x (scot %ud rev) %keep %$ (scot %ud 1)]
-::
-++  item-spur  |=(=id ^-(path /item/[(scot %uv id)]))
-::
-++  member-spur
-  |=  [=lyst salt=@uvH who=ship]
-  ^-  path
-  ?:  =(%public lyst)  /index
-  /list/[(scot %uv (shas salt (jam [lyst who])))]
-::
-::  never bunt a salt: a zero salt makes every member address derivable
-++  mint  |=(=lyst ^-(@uvH (sham (mix eny.bowl (jam lyst)))))
+++  first        first:kc
+++  base         base:kc
+++  item-spur    item-spur:kc
+++  member-spur  member-spur:kc
+++  mint         |=(=lyst ^-(@uvH (mint:kc eny.bowl lyst)))
 ::
 ++  fan-out
   |=  [e=entry to=(list lyst)]
@@ -741,43 +730,8 @@
       (cache '/keep/app.js' (js-response:gen:srv (as-octs:mimes:html app-js)))
   ==
 ::
-++  reserved
-  ^-  (set @t)
-  %-  sy
-  :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
-      '/keep/ship'   '/keep/style.css'  '/keep/app.js'
-  ==
-::
-++  slugify
-  |=  t=@t
-  ^-  @t
-  =/  cs=tape  (trip t)
-  =|  acc=tape                         ::  reversed
-  =/  gap=?  %.y                       ::  suppress leading hyphens
-  |-  ^-  @t
-  ?~  cs
-    =/  s=tape  (flop ?:(?&(?=(^ acc) =('-' i.acc)) t.acc acc))
-    ?~(s 'untitled' (crip s))
-  =/  c=@tD  i.cs
-  =/  low=@tD  ?:(&((gte c 'A') (lte c 'Z')) (add c 32) c)
-  ?:  ?|  &((gte low 'a') (lte low 'z'))
-          &((gte low '0') (lte low '9'))
-      ==
-    $(cs t.cs, acc [low acc], gap %.n)
-  ?:  gap  $(cs t.cs)
-  $(cs t.cs, acc ['-' acc], gap %.y)
-::
-++  site-path
-  |=  tit=(unit @t)
-  ^-  @t
-  =/  base=tape  (trip ?~(tit 'untitled' (slugify u.tit)))
-  =|  n=@ud
-  |-  ^-  @t
-  =/  try=@t
-    ?:  =(0 n)  (crip "/keep/{base}")
-    (crip "/keep/{base}-{(a-co:co n)}")
-  ?.  |((~(has by sites) try) (~(has in reserved) try))  try
-  $(n +(n))
+++  slugify    slugify:kc
+++  site-path  |=(tit=(unit @t) ^-(@t (site-path:kc sites tit)))
 ::
 ++  public-rows
   |=  [ss=(map @t id) ps=(map id item:keep)]
@@ -842,12 +796,7 @@
   ?:  =(%public p.i.ls)  $(ls t.ls)
   [[p.i.ls members.q.i.ls] $(ls t.ls)]
 ::
-++  last-of
-  |=  p=path
-  ^-  @ta
-  ?~  p  ''
-  ?~  t.p  i.p
-  $(p t.p)
+++  last-of  last-of:kc
 ::
 ++  kept
   |=  e=entry
@@ -862,12 +811,7 @@
   ?:  (has-entry log.q.i.ls e)  %.y
   $(ls t.ls)
 ::
-++  has-entry
-  |=  [es=(list entry) e=entry]
-  ^-  ?
-  ?~  es  %.n
-  ?:  =(i.es e)  %.y
-  $(es t.es)
+++  has-entry  has-entry:kc
 ::
 ++  head-of
   |=  e=entry
@@ -932,26 +876,7 @@
   ?~  es  rest
   (~(put in $(es t.es)) i.es)
 ::
-++  by-date
-  |=  rs=(list row:ui)
-  ^-  (list row:ui)
-  =|  out=(list row:ui)
-  |-  ^-  (list row:ui)
-  ?~  rs  out
-  $(rs t.rs, out (insert-row out i.rs))
-::
-++  insert-row
-  |=  [rs=(list row:ui) r=row:ui]
-  ^-  (list row:ui)
-  ?~  rs  ~[r]
-  ?:  (gth (stamp r) (stamp i.rs))  [r rs]
-  [i.rs $(rs t.rs)]
-::
-++  stamp
-  |=  r=row:ui
-  ^-  @da
-  ?~  hed.r  *@da
-  wen.u.hed.r
+++  by-date  by-date:kc
 ::
 ++  body-of
   |=  e=entry
