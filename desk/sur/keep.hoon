@@ -23,6 +23,11 @@
 ::
 +$  item   [=head =page]             ::  page is [mark noun]; prose is md+'...'
 ::
+::  %cold is not a weaker %good: it is "we could not ask". an author picks
+::  it for us by claiming a life jael holds no key for, so it carries no
+::  more authority than an unsigned page.
++$  verdict  ?(%good %forged %cold)
+::
 ::  ---- writes: poke %keep-action ---------------------------------------------
 ::
 +$  action
@@ -57,7 +62,7 @@
       [%arrived via=feed =entry]
       [%deleted =entry]
       [%head =entry =head]
-      [%body =entry =page okay=(unit ?)]
+      [%body =entry =page okay=(unit verdict)]
       [%lists lists=(map lyst (set ship))]
       [%peers subs=(set ship) off=(set ship)]
       [%pending invites=(list [=feed =lyst])]

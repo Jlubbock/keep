@@ -149,12 +149,24 @@ export const entryHoon = (ship, id, agent = 'keep') =>
 
 const yes = (text) => /%\.y/.test(text);
 
-//  (unit ?) — ~ unjudged, [~ %.n] forged, [~ %.y] verified
+//  (unit verdict) — ~ unjudged; else %good, %forged, or %cold (no key for
+//  the life the head claims, so the signature was never checked at all)
 export const checkedOf = (m, entry) =>
-  dojo(m, `=/  c  .^((map [@p path] ?) %gx /=keep=/checked/noun)  (~(get by c) ${entry})`);
+  dojo(m, `=/  c  .^((map [@p path] ?(%good %forged %cold)) %gx /=keep=/checked/noun)  (~(get by c) ${entry})`);
 
-export const verified = async (m, entry) => /\[~ %\.y\]/.test(await checkedOf(m, entry));
-export const forged = async (m, entry) => /\[~ %\.n\]/.test(await checkedOf(m, entry));
+export const verified = async (m, entry) => /\[~ %good\]/.test(await checkedOf(m, entry));
+export const forged = async (m, entry) => /\[~ %forged\]/.test(await checkedOf(m, entry));
+export const uncheckable = async (m, entry) => /\[~ %cold\]/.test(await checkedOf(m, entry));
+
+//  the head as SERVED — who it names and at what life, before any verdict.
+//  a %cold entry is only interesting if the head really did claim someone else.
+export const claimsOf = (m, entry) =>
+  dojo(m, `=/  hs  .^((map [@p path] [wen=@da who=@p lyfe=@ud *]) %gx /=keep=/heads/noun)  (~(get by hs) ${entry})`);
+
+export const claims = async (m, entry, who, lyfe) => {
+  const out = await claimsOf(m, entry);
+  return out.includes(who) && new RegExp(`\\b${lyfe}\\b`).test(out);
+};
 
 export const tails = async (m, who) =>
   yes(await dojo(m, `(~(has by .^((map [@p path] @ud) %gx /=keep=/subs/noun)) [${who} /index])`));

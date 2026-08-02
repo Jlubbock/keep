@@ -45,7 +45,7 @@ if (id) {
   }).catch(() => null);
   s.check('C1.5 the body arrives on demand', !!got);
 
-  //  %.y, not "no warning rendered": ~ (unjudged) also renders no warning
+  //  %good, not "no warning rendered": ~ (unjudged) also renders no warning
   s.check('C1.6 and verifies against the author key',
     await h.until('peer to judge the body', () => h.verified(peer, h.entryHoon(h.HOST, id)))
       .then(() => true, () => false));

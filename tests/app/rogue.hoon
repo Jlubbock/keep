@@ -4,9 +4,12 @@
 ::    +mirror only ever publish `[our (base first) item-spur]`. So the only
 ::    forgery worth testing is a peer running different code, which is this.
 ::
-::    It grows head/body pairs at the same namespace shape app/keep.hoon reads,
-::    either matching or spliced: a real signature over a head whose `hash`
-::    names a body other than the one served.
+::    It grows head/body pairs at the same namespace shape app/keep.hoon reads:
+::
+::      %plant  a real signature over a head whose `hash` names a body other
+::              than the one served, or an honest pair as the control.
+::      %forge  a head naming ANOTHER ship, at a life jael cannot resolve, so
+::              +pass-of returns ~ and the signature is never checked. For C6.
 ::
 ::    Test-only. Never in desk.bill — bake.mjs starts it with |rein.
 ::
@@ -33,21 +36,34 @@
   ^-  (quip card _this)
   ?.  ?=(%noun mark)  (on-poke:def mark vase)
   ::  ;; not !<: the %noun mark grabs to `*`, which nests under nothing
-  =/  act  ;;([%plant honest=? title=@t body=@t] q.vase)
-  =/  signed=page  [%md body.act]
-  =/  hash=@uvH    (sham signed)
-  =/  lyfe=@ud
+  =/  act
+    ;;  $%  [%plant honest=? title=@t body=@t]
+            [%forge who=@p lyfe=@ud title=@t body=@t]
+        ==
+    q.vase
+  =/  ours=@ud
     .^(@ud %j /(scot %p our.bowl)/life/(scot %da now.bowl)/(scot %p our.bowl))
-  =/  =id:keep  (sain:keep our.bowl lyfe now.bowl 'cc0' `title.act hash)
+  ::  who and lyfe are what the head CLAIMS; the key is always ours
+  =/  plan=[who=@p lyfe=@ud tit=@t signed=page served=page]
+    ?-    -.act
+        %plant
+      :*  our.bowl  ours  title.act  [%md body.act]
+          ?:  honest.act  [%md body.act]
+          [%md (cat 3 body.act ' (tampered in transit)')]
+      ==
+    ::
+        %forge
+      [who.act lyfe.act title.act [%md body.act] [%md body.act]]
+    ==
+  =/  hash=@uvH  (sham signed.plan)
+  =/  =id:keep   (sain:keep who.plan lyfe.plan now.bowl 'cc0' `tit.plan hash)
   =/  sec=@
-    .^(@ %j /(scot %p our.bowl)/vein/(scot %da now.bowl)/(scot %ud lyfe))
+    .^(@ %j /(scot %p our.bowl)/vein/(scot %da now.bowl)/(scot %ud ours))
   =/  hed=head:keep
-    :*  now.bowl  our.bowl  lyfe  'cc0'  `title.act  hash
+    :*  now.bowl  who.plan  lyfe.plan  'cc0'  `tit.plan  hash
         (sigh:as:(nol:nu:crub:crypto sec) id)
     ==
-  =/  served=page
-    ?:  honest.act  signed
-    [%md (cat 3 body.act ' (tampered in transit)')]
+  =/  served=page  served.plan
   =/  spur=path  /item/[(scot %uv id)]
   :_  this(last id)
   :~  [%pass /grow %grow (welp spur /head) noun+hed]

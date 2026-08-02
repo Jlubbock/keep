@@ -32,13 +32,17 @@ at all.
 **C — `multi/`.** Earth-side scenarios driving two ships over MCP.
 
 - `c1-follow` — the public path: grow `/index`, keen, head eagerly, body on
-  click, verdict `%.y`.
+  click, verdict `%good`.
 - `c2-gating` — a gated list with TWO members. One post published after the
   eviction must reach the witness and not the evicted peer, so the control is
   concurrent — same list, same post, same window. With one member, "withheld"
   is indistinguishable from a fleet that cannot deliver, and a broken fleet
   scores it green.
 - `c3-forgery` — a spliced head from a peer running different code.
+- `c6-impostor` — a well-formed head naming a THIRD ship at a life jael cannot
+  resolve, so the signature is never checked. Verdict `%cold`, which must not
+  read as `%good`: an attacker picks the life, so it must buy nothing. The
+  honest pair planted alongside is the control.
 - `c5-delete` — the author deletes; the follower's row goes and the reposter's
   stays. The witness reads both copies, so "pruned" is controlled by "still
   delivered" in the same window. Two posts are published: the tomb can only be
@@ -94,9 +98,9 @@ never re-hosted under our own name.
 Two `on-peek` paths were added for the suite, both read-only views of state the
 agent already held:
 
-- `/x/checked` — the `(unit ?)` verdict. Without it a test can only see
-  `read-page`'s warning, which renders for `%.n` and not for `~` — so "no
-  warning" proves *not forged*, never *verified*.
+- `/x/checked` — the `(unit verdict)` verdict. Without it a test can only see
+  `read-page`'s warning, and a warning cannot tell `%forged` from `%cold` — so
+  "no warning" proves *unjudged*, never *verified*.
 - `/x/follows` — tailing is mechanical, following is what puts a ship in your
   feed. C4.4 is the difference.
 
@@ -145,8 +149,9 @@ until you do.
   `app/keep.hoon`, so layer B tests the primitives they are built from rather
   than the arms themselves. C3 covers their behaviour end to end; a unit-level
   test of `+sound`'s four clauses would need them lifted into the lib too.
-- C3's forgery is the hash-mismatch clause. A head whose *signature* is wrong,
-  or whose claimed `lyfe` does not match, takes a different path through
-  `+sound` and is not separately exercised.
+- C3's forgery is the hash-mismatch clause. A head whose *signature* is wrong
+  takes a different path through `+sound` and is not separately exercised. A
+  head whose claimed `lyfe` does not match now lands on `%cold`, which is
+  covered by C6.
 - `+probe` (`/ask`) subscribes without following, the counterpart to C4.4's
   `/hey`. Nothing drives it.

@@ -21,7 +21,8 @@
 +$  head-0  [wen=@da terms=@t title=(unit @t)]
 +$  item-0  [head=head-0 =page]
 ::
-+$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4 state-5)
++$  versioned-state
+  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6)
 ::
 +$  state-0
   $:  %0
@@ -110,10 +111,27 @@
       keeping=(map entry (set lyst))
       pending=(map feed lyst)          ::  invites awaiting %accept
   ==
+::
++$  state-6
+  $:  %6
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry verdict:keep)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)
+  ==
 --
 ::
 %-  agent:dbug
-=|  state-5
+=|  state-6
 =*  state  -
 ^-  agent:gall
 =<
@@ -142,23 +160,34 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ::
-  =/  new=state-5
+  =/  new=state-6
     ?-  -.old
-      %5  old
+      %6  old
     ::
-        %4
-      :*  %5
+        %5
+      :*  %6
           posts.old
           lists.old
           subs.old
           wall.old  refs.old  heads.old  seen.old
           off.old  sites.old  follows.old
-          checked.old  keeping.old
+          (recheck:hc checked.old)
+          keeping.old  pending.old
+      ==
+    ::
+        %4
+      :*  %6
+          posts.old
+          lists.old
+          subs.old
+          wall.old  refs.old  heads.old  seen.old
+          off.old  sites.old  follows.old
+          (recheck:hc checked.old)  keeping.old
           ~                              ::  pending
       ==
     ::
         %3
-      :*  %5
+      :*  %6
           posts.old
           (wipe-logs:hc lists.old)
           subs.old
@@ -173,7 +202,7 @@
       ==
     ::
         %2
-      :*  %5
+      :*  %6
           ~                              ::  posts   — old heads
           (wipe-logs:hc lists.old)       ::  logs    — pointed at those posts
           subs.old
@@ -190,14 +219,14 @@
       ==
     ::
         %1
-      :*  %5
+      :*  %6
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
           ~  ~  ~
       ==
     ::
         %0
-      :*  %5
+      :*  %6
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
           ~  ~  ~
@@ -217,7 +246,7 @@
     [%x %subs ~]   ``noun+!>(subs)
     [%x %posts ~]  ``noun+!>(posts)
     [%x %lists ~]  ``noun+!>((members-of:hc lists))
-  ::  ~ is not %.n: unjudged and forged are different answers
+  ::  absent is not %forged: unjudged and judged-bad are different answers
     [%x %checked ~]  ``noun+!>(checked)
   ::  subs is who we tail, mechanically; follows is whose posts we asked for
     [%x %follows ~]  ``noun+!>(follows)
@@ -286,8 +315,10 @@
               !(from-public:hc entry.act)
           ==
         ~|(%keep-would-expose-gated-address !!)
-      ?:  =(`%.n (~(get by checked) entry.act))
+      ?:  =(`%forged (~(get by checked) entry.act))
         ~|(%keep-would-syndicate-forgery !!)
+      ?:  =(`%cold (~(get by checked) entry.act))
+        ~|(%keep-would-syndicate-unverified !!)
       ?~  bod=(~(get by seen) entry.act)
         =/  more=(list card)
           ?:((~(has by heads) entry.act) ~ ~[(fetch-head:hc entry.act)])
@@ -520,14 +551,14 @@
       %-  (slog leaf+"keep: unreadable head from {<ship.e>}" ~)
       `this
     =/  hed=head:keep  p.res
-    =/  late=(unit ?)
+    =/  late=(unit verdict:keep)
       ?:  (~(has by checked) e)  ~
       ?~  bod=(~(get by seen) e)  ~
-      ?~  want=(slaw %uv (last-of:hc path.e))  `%.n
-      (sound:hc hed u.bod u.want)
-    =/  vote=(unit ?)  ?^(late late (~(get by checked) e))
+      ?~  want=(slaw %uv (last-of:hc path.e))  `%forged
+      `(sound:hc hed u.bod u.want)
+    =/  vote=(unit verdict:keep)  ?^(late late (~(get by checked) e))
     =/  done
-      ?:  =(`%.n vote)  ~
+      ?.  =(`%good vote)  ~
       ?~  bod=(~(get by seen) e)  ~
       (finish:hc e hed u.bod)
     :_  %=  this
@@ -535,7 +566,7 @@
           checked  ?~(late checked (~(put by checked) e u.late))
           lists    ?~(done lists lists.u.done)
           posts    ?~(done posts posts.u.done)
-          keeping  ?:(|(=(`%.n vote) ?=(^ done)) (~(del by keeping) e) keeping)
+          keeping  ?:(|((settled:hc vote) ?=(^ done)) (~(del by keeping) e) keeping)
         ==
     %+  weld  (give:hc [%head e hed])
     ?~(done ~ cards.u.done)
@@ -549,9 +580,9 @@
       %-  (slog leaf+"keep: unreadable body from {<ship.e>}" ~)
       `this
     =/  bod=page  p.res
-    =/  okay=(unit ?)  (judge:hc e bod)
+    =/  okay=(unit verdict:keep)  (judge:hc e bod)
     =/  done
-      ?:  =(`%.n okay)  ~
+      ?.  =(`%good okay)  ~
       ?~  hed=(~(get by heads) e)  ~
       (finish:hc e u.hed bod)
     :_  %=  this
@@ -559,7 +590,7 @@
           checked  ?~(okay checked (~(put by checked) e u.okay))
           lists    ?~(done lists lists.u.done)
           posts    ?~(done posts posts.u.done)
-          keeping  ?:(|(=(`%.n okay) ?=(^ done)) (~(del by keeping) e) keeping)
+          keeping  ?:(|((settled:hc okay) ?=(^ done)) (~(del by keeping) e) keeping)
         ==
     %+  weld  (give:hc [%body e bod okay])
     ?~(done ~ cards.u.done)
@@ -645,6 +676,21 @@
   ?~  fs  0
   ?.  =(who ship.p.i.fs)  $(fs t.fs)
   +($(fs t.fs))
+::
+::  a %keep waiting on this entry will never fire: judged, and not %good
+++  settled
+  |=  v=(unit verdict:keep)
+  ^-  ?
+  ?~  v  %.n
+  ?!(=(%good u.v))
+::
+++  recheck
+  |=  m=(map entry ?)
+  ^-  (map entry verdict:keep)
+  =/  es=(list [p=entry q=?])  ~(tap by m)
+  |-  ^-  (map entry verdict:keep)
+  ?~  es  ~
+  (~(put by $(es t.es)) p.i.es ?:(q.i.es %good %forged))
 ::
 ++  wipe-logs
   |=  m=(map lyst roster)
@@ -799,23 +845,25 @@
   =/  ded  .^([@ud pas=@ *] %j /[us]/deed/[wen]/[him]/(scot %ud lyfe))
   `pas.ded
 ::
+::  ~ is "not yet": ours, or the head has not landed. every other answer
+::  is a verdict we are done forming.
 ++  judge
   |=  [e=entry bod=page]
-  ^-  (unit ?)
+  ^-  (unit verdict:keep)
   ?:  =(our.bowl ship.e)  ~
   ?~  hed=(~(get by heads) e)  ~
-  ?~  want=(slaw %uv (last-of path.e))  `%.n
-  (sound u.hed bod u.want)
+  ?~  want=(slaw %uv (last-of path.e))  `%forged
+  `(sound u.hed bod u.want)
 ::
 ++  sound
   |=  [hed=head:keep bod=page want=@uvH]
-  ^-  (unit ?)
-  ?.  =(hash.hed (sham bod))  `%.n
+  ^-  verdict:keep
+  ?.  =(hash.hed (sham bod))  %forged
   =/  =id:keep
     (sain:keep who.hed lyfe.hed wen.hed terms.hed title.hed hash.hed)
-  ?.  =(id want)  `%.n
-  ?~  pas=(pass-of who.hed lyfe.hed)  ~
-  `(safe:as:(com:nu:crub:crypto u.pas) sig.hed id)
+  ?.  =(id want)  %forged
+  ?~  pas=(pass-of who.hed lyfe.hed)  %cold
+  ?:((safe:as:(com:nu:crub:crypto u.pas) sig.hed id) %good %forged)
 ::
 ::  ---- hosting ---------------------------------------------------------------
 ::

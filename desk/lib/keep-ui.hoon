@@ -9,7 +9,7 @@
       kept=?                             ::  have we syndicated it
       pub=?                              ::  did it reach us publicly
       site=(unit @t)                     ::  its url on the open web, if ours
-      okay=(unit ?)
+      okay=(unit verdict:keep)
   ==
 ::
 +$  view
@@ -240,9 +240,12 @@
   ;article.k-read
     ;a(href "/keep", class "k-back"): ←
     ;h1.k-art-title: {(titled hed.r)}
-    ;*  ?.  =(`%.n okay.r)  ~
+    ;*  ?:  =(`%forged okay.r)
+          :_  ~
+          ;div.k-warn: ⚠ this does not match {(pp (author r))}'s signature — it may have been altered by whoever served it
+        ?.  =(`%cold okay.r)  ~
         :_  ~
-        ;div.k-warn: ⚠ this does not match {(pp (author r))}'s signature — it may have been altered by whoever served it
+        ;div.k-warn: ⚠ nothing here shows {(pp (author r))} wrote this — it claims a key life we cannot fetch, so anyone could have served it
     ;div.k-meta
       ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
       ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
