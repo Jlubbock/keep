@@ -16,14 +16,17 @@ export const AGENT = 'keep';
 //
 //  `code` is each ship's +code, read from its dojo once and pasted here. A
 //  fakeship's is stable for the life of the pier.
+//  GALAXIES, not stars. Two stars under absent galaxies cannot route to each
+//  other — measured: a clay remote scry of guaranteed content timed out, while
+//  both ships were healthy locally. Galaxies route directly.
 export const SHIPS = {
-  '~marzod': { name: 'marzod', port: 8095, code: 'sivtep-rossyl-ronres-savbec' },
-  '~pindul': { name: 'pindul', port: 8096, code: 'rolmug-pinsem-nomhet-wicmul' },
+  '~dev': { name: 'dev', port: 8095, code: 'magsub-micsev-bacmug-moldex' },
+  '~lex': { name: 'lex', port: 8096, code: 'tonhet-diltyd-dotsup-sabnum' },
 };
 
 //  HOST publishes and judges; PEER reads, is gated, and runs the rogue.
-export const HOST = '~marzod';
-export const PEER = '~pindul';
+export const HOST = '~dev';
+export const PEER = '~lex';
 
 const pier = (n) => `${FLEET}/run/${n}`;
 const golden = (n) => `${FLEET}/golden/${n}`;
@@ -180,6 +183,11 @@ export async function stays(label, fn, { hold = 10000, every = 1000 } = {}) {
   }
   return true;
 }
+
+//  Resolve a check to a boolean. A timed-out `until` must FAIL that check, not
+//  throw: an uncaught rejection kills the scenario before its sheet prints, so
+//  every assertion that already passed is lost with it.
+export const got = (p) => Promise.resolve(p).then(() => true, () => false);
 
 export function sheet(name) {
   const rows = [];

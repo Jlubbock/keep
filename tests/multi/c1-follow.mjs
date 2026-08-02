@@ -21,7 +21,7 @@ const has = (m, url, text) => m.get(url).then((r) => r.body.includes(text));
 await h.poke(host, `[%post md+'${BODY}' \`'${TITLE}' 'cc0' (sy ~[%public])]`);
 
 s.check('C1.1 the author holds it',
-  !!(await h.until('host to index the post', () => has(host, '/keep/index', TITLE))));
+  await h.got(h.until('host to index the post', () => has(host, '/keep/index', TITLE))));
 
 s.check('C1.2 and serves it on the open web',
   await has(host, SLUG, BODY), SLUG);
@@ -30,7 +30,7 @@ await h.poke(peer, `[%sub ${h.HOST}]`);
 
 //  the title is rendered from the HEAD, so this is head delivery too
 s.check('C1.3 a follower sees the headline',
-  !!(await h.until('peer to wall the entry', () => has(peer, '/keep', TITLE), { timeout: 60000 })));
+  await h.got(h.until('peer to wall the entry', () => has(peer, '/keep', TITLE), { timeout: 60000 })));
 
 const feed = (await peer.get('/keep')).body;
 const id = new RegExp(`/keep/read/(0v[^/"]+)/${h.HOST}`).exec(feed)?.[1];
@@ -48,7 +48,7 @@ if (id) {
   //  %.y, not "no warning rendered": ~ (unjudged) also renders no warning
   s.check('C1.6 and verifies against the author key',
     await h.until('peer to judge the body', () => h.verified(peer, h.entryHoon(h.HOST, id)))
-      .then(() => true).catch(() => false));
+      .then(() => true, () => false));
 }
 
 process.exit(s.done() ? 1 : 0);

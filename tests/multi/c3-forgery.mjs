@@ -45,22 +45,22 @@ if (good && bad && good !== bad) {
   //  the positive control: same ship, same path shape, same fetch
   s.check('C3.1 a matching pair verifies',
     await h.until('host to verify the honest pair', () => h.verified(host, goodEntry))
-      .then(() => true).catch(() => false));
+      .then(() => true, () => false));
 
   s.check('C3.2 and is re-hosted under our own name',
     await h.until('host to mirror the honest item', () => h.holds(host, good))
-      .then(() => true).catch(() => false));
+      .then(() => true, () => false));
 
   s.check('C3.3 a spliced pair is caught',
     await h.until('host to reject the forged pair', () => h.forged(host, badEntry))
-      .then(() => true).catch(() => false));
+      .then(() => true, () => false));
 
   //  the whole point: a forgery that merely fails to render is still a forgery
   //  you are serving to everyone who reads your shop
   s.check('C3.4 and is never re-hosted',
     await h.stays('host to keep refusing to mirror the forgery',
       async () => !(await h.holds(host, bad)), { hold: 10000 })
-      .then(() => true).catch(() => false));
+      .then(() => true, () => false));
 }
 
 process.exit(s.done() ? 1 : 0);

@@ -25,7 +25,7 @@ await h.poke(host, `[%list %${LYST} (sy ~[${h.PEER}])]`);
 await post(BEFORE, 'members only');
 
 s.check('C2.1 a member receives the list',
-  !!(await h.until('peer to see the gated post', () => sees(BEFORE), { timeout: 60000 })));
+  await h.got(h.until('peer to see the gated post', () => sees(BEFORE), { timeout: 60000 })));
 
 await h.poke(host, `[%evict %${LYST} (sy ~[${h.PEER}])]`);
 await post(AFTER, 'after the eviction');
@@ -41,6 +41,6 @@ s.check('C2.2 an evicted member receives nothing',
 await h.poke(host, `[%admit %${LYST} (sy ~[${h.PEER}])]`);
 
 s.check('C2.3 re-admission backfills what was withheld',
-  !!(await h.until('peer to receive the withheld post', () => sees(AFTER), { timeout: 60000 })));
+  await h.got(h.until('peer to receive the withheld post', () => sees(AFTER), { timeout: 60000 })));
 
 process.exit(s.done() ? 1 : 0);

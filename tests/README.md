@@ -106,12 +106,18 @@ overrides the second; there is no override for the first.
 Its own, at `~/solarsystem/fleet/keep` — not the marketplace suite's piers.
 Different `@p`, different ports, so both suites can run at once.
 
-    fleet/keep/golden/{marzod,pindul}    baked by tests/bake.mjs, never by a run
-    fleet/keep/run/{marzod,pindul}       disposable CoW clones, ports 8095/8096
+    fleet/keep/golden/{dev,lex}    baked by tests/bake.mjs, never by a run
+    fleet/keep/run/{dev,lex}       disposable CoW clones, ports 8095/8096
 
-`~marzod` is the HOST — it publishes, owns lists, and judges. `~pindul` is the
-PEER — it reads, gets gated, and runs the rogue. Scenarios name them by role
+`~dev` is the HOST — it publishes, owns lists, and judges. `~lex` is the PEER —
+it reads, gets gated, and runs the rogue. Scenarios name them by role
 (`h.HOST`, `h.PEER`), so re-pointing the fleet is one edit in `harness.mjs`.
+
+**They must be GALAXIES.** A star routes to another ship via its sponsor, so
+two stars under sponsors that are not themselves running cannot reach each
+other at all — measured on an earlier `~marzod`/`~pindul` fleet, where a Clay
+remote scry of guaranteed-present content timed out while both ships were
+perfectly healthy locally. Galaxies route to each other directly.
 
 Both ships need `%mcp` (the suite drives everything through it) and `%pals`
 (`on-init` watches `[our %pals]`, `+targets` scries `%gu pals`, and C4 is

@@ -35,7 +35,9 @@ for (const s of ships) {
 
   //  the golden must be the only thing on its port
   h.kill(s.name);
-  execSync(`pkill -f '${h.FLEET}/golden/${s.name}/.run' 2>/dev/null || true`);
+  //  the pier PATH, not <pier>/.run: a hand-launched ship's argv[0] is often
+  //  relative, but its --snap-dir is always absolute
+  execSync(`pkill -f '${pier}' 2>/dev/null || true`);
   await new Promise((r) => setTimeout(r, 2000));
 
   execSync(`${pier}/.run -d -L --http-port ${s.port} ${pier} >/dev/null 2>&1 &`);
