@@ -137,6 +137,8 @@ form { margin: 0; }
   display: inline-block; margin-bottom: 44px; transition: color .3s ease;
 }
 .k-back:hover { color: #171614; }
+/* bigger on the clearnet page, where it is the only navigation on screen */
+.k-solo .k-back { font-size: 18px; }
 .k-art-title {
   font-size: 36px; line-height: 1.2; font-weight: 600;
   letter-spacing: -0.015em; margin: 0 0 16px;
