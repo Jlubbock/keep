@@ -57,6 +57,13 @@ ames carries exactly two things, both once per relationship and never per
 post: %announce (are you running %keep) and %invite (here is your address
 for my list). everything else is remote scry.
 
+both are pokes any ship can send, so neither may subscribe us on its own.
+%announce is ignored unless the sender is a pals target. %invite parks in
+`pending` and does nothing until %accept: without that, an invite is an
+unbounded write into a stranger's feed, and comets are free. %accept is
+where the keen starts and where the sender enters `follows`; %reject just
+drops the offer, and a re-invite may be sent.
+
 ## Signed authorship
 
 `head` carries `who`, `lyfe`, `hash` and `sig`. `id` is `(sham +sain)` over the

@@ -36,6 +36,9 @@
       ::
       [%sub who=ship]
       [%unsub who=ship]
+      ::
+      [%accept =feed]
+      [%reject =feed]
   ==
 ::
 ::  ---- network: poke %keep-gossip --------------------------------------------
@@ -55,5 +58,6 @@
       [%body =entry =page okay=(unit ?)]
       [%lists lists=(map lyst (set ship))]
       [%peers subs=(set ship) off=(set ship)]
+      [%pending invites=(list [=feed =lyst])]
   ==
 --

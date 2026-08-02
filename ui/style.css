@@ -270,6 +270,22 @@ form { margin: 0; }
 }
 .k-new-wrap { padding: 20px 0; }
 
+.k-pending { border-bottom: 1px solid #eeeae1; padding: 20px 0; }
+.k-pending-head {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #c3bcae;
+  padding-bottom: 12px;
+}
+.k-invite {
+  display: flex; align-items: baseline; gap: 12px; padding: 4px 0;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+}
+.k-invite-who { color: #171614; }
+.k-invite-list { flex: 1; }
+.k-yes { color: #8a857c; }
+.k-yes:hover { color: #171614; }
+.k-no { color: #d8d2c6; }
+.k-no:hover { color: #171614; }
+
 /* ---- narrow ----------------------------------------------------------- */
 
 @media (max-width: 720px) {

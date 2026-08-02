@@ -28,8 +28,30 @@ const post = (title, body) =>
 const sees = (m, title) =>
   m.get(`/keep/ship/${h.HOST}`).then((r) => r.body.includes(title));
 
+//  the per-member spur IS the capability, and it exists nowhere on the reader
+//  but its own pending map — so the test reads it back rather than deriving it
+const invitePath = async (m, from) => {
+  const out = await h.dojo(m, `~(tap by .^((map [@p path] @tas) %gx /=keep=/pending/noun))`);
+  return new RegExp(`\\[${from} (/\\S+)\\]`).exec(out)?.[1] ?? null;
+};
+
+const accept = async (m, from) => {
+  const p = await h.until(`${m.patp} to be offered an invite`, () => invitePath(m, from));
+  return h.poke(m, `[%accept [${from} ${p}]]`);
+};
+
 await h.poke(host, `[%list %${LYST} (sy ~[${h.PEER} ${h.WITNESS}])]`);
 await post(BEFORE, 'members only');
+
+//  an invite is an offer, not a subscription: nothing may arrive before accept.
+//  C2.1 is this check's positive control — the same post, same list, same
+//  window, once the invite is taken.
+s.check('C2.0 an unaccepted invite delivers nothing',
+  await h.got(h.stays('peer to stay empty while the invite is pending',
+    async () => !(await sees(peer, BEFORE)), { hold: 15000 })));
+
+await accept(peer, h.HOST);
+await accept(witness, h.HOST);
 
 s.check('C2.1 a member receives the list',
   await h.got(h.until('peer to see the gated post', () => sees(peer, BEFORE), { timeout: 60000 })));

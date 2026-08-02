@@ -20,6 +20,7 @@
       follows=(set ship)                 ::  who we follow: the feed
       off=(set ship)                     ::  confirmed not running %keep
       rolls=(list [=lyst:keep members=(set ship)])
+      pending=(list [=feed:keep =lyst:keep])
   ==
 --
 ::
@@ -333,11 +334,44 @@
     ==
   ==
 ::
+++  invite-form
+  |=  [f=feed:keep what=tape label=tape cls=tape]
+  ^-  manx
+  ;form(method "post", action "/keep", style "display:inline")
+    ;+  (hidden "what" what)
+    ;+  (hidden "who" (pp ship.f))
+    ;+  (hidden "path" (spud path.f))
+    ;+  (hidden "back" "/keep/lists")
+    ;button(type "submit", class "k-link {cls}"): {label}
+  ==
+::
+++  pending-block
+  ^-  (list manx)
+  ?~  pending.v  ~
+  :_  ~
+  ;div.k-pending
+    ;div.k-pending-head: pending
+    ::  spelled out, not turn: feed holds a path, and turn is a wet gate
+    ::  re-widened: the ?~ above narrowed it, and the loop rebinds to a tail
+    ;*  =/  ps=(list [=feed:keep =lyst:keep])  pending.v
+        |-  ^-  (list manx)
+        ?~  ps  ~
+        :_  $(ps t.ps)
+        =/  f=feed:keep  feed.i.ps
+        ;div.k-invite
+          ;a(href "/keep/ship/{(pp ship.f)}", class "k-invite-who"): {(pp ship.f)}
+          ;span.k-invite-list: {(trip lyst.i.ps)}
+          ;+  (invite-form f "accept" "accept" "k-yes")
+          ;+  (invite-form f "reject" "reject" "k-no")
+        ==
+  ==
+::
 ++  lists-page
   |=  open=(unit lyst:keep)
   ^-  manx
   %+  shell  %lists
   ;div.k-col
+    ;*  pending-block
     ;div.k-rows
       ;*  %+  turn  rolls.v
           |=  [=lyst:keep members=(set ship)]

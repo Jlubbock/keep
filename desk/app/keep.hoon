@@ -21,7 +21,7 @@
 +$  head-0  [wen=@da terms=@t title=(unit @t)]
 +$  item-0  [head=head-0 =page]
 ::
-+$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4)
++$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4 state-5)
 ::
 +$  state-0
   $:  %0
@@ -93,10 +93,27 @@
       checked=(map entry ?)
       keeping=(map entry (set lyst))
   ==
+::
++$  state-5
+  $:  %5
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry ?)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)          ::  invites awaiting %accept
+  ==
 --
 ::
 %-  agent:dbug
-=|  state-4
+=|  state-5
 =*  state  -
 ^-  agent:gall
 =<
@@ -125,12 +142,23 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ::
-  =/  new=state-4
+  =/  new=state-5
     ?-  -.old
-      %4  old
+      %5  old
+    ::
+        %4
+      :*  %5
+          posts.old
+          lists.old
+          subs.old
+          wall.old  refs.old  heads.old  seen.old
+          off.old  sites.old  follows.old
+          checked.old  keeping.old
+          ~                              ::  pending
+      ==
     ::
         %3
-      :*  %4
+      :*  %5
           posts.old
           (wipe-logs:hc lists.old)
           subs.old
@@ -141,10 +169,11 @@
           off.old  sites.old  follows.old
           ~                              ::  checked
           keeping.old
+          ~                              ::  pending
       ==
     ::
         %2
-      :*  %4
+      :*  %5
           ~                              ::  posts   — old heads
           (wipe-logs:hc lists.old)       ::  logs    — pointed at those posts
           subs.old
@@ -157,20 +186,21 @@
           follows.old
           ~                              ::  checked
           ~                              ::  keeping
+          ~                              ::  pending
       ==
     ::
         %1
-      :*  %4
+      :*  %5
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
-          ~  ~
+          ~  ~  ~
       ==
     ::
         %0
-      :*  %4
+      :*  %5
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
-          ~  ~
+          ~  ~  ~
       ==
     ==
   :_  this(state new)
@@ -191,6 +221,7 @@
     [%x %checked ~]  ``noun+!>(checked)
   ::  subs is who we tail, mechanically; follows is whose posts we asked for
     [%x %follows ~]  ``noun+!>(follows)
+    [%x %pending ~]  ``noun+!>(pending)
   ::
       [%x %item @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
@@ -332,6 +363,24 @@
       =/  ff  (~(del in follows) who.act)
       :_  this(follows ff)
       (give:hc (peers-of:hc subs off))
+    ::
+    ::  ---- invites -----------------------------------------------------------
+        %accept
+      ?.  (~(has by pending) feed.act)  `this
+      =/  pp  (~(del by pending) feed.act)
+      =/  ss  (~(put by subs) feed.act first:hc)
+      =/  ff  (~(put in follows) ship.feed.act)
+      :_  this(subs ss, follows ff, pending pp)
+      :-  (tail:hc feed.act first:hc)
+      %+  weld
+        (give:hc (peers-of:hc ss off))
+      (give:hc [%pending (wait-of:hc pp)])
+    ::
+        %reject
+      ?.  (~(has by pending) feed.act)  `this
+      =/  pp  (~(del by pending) feed.act)
+      :_  this(pending pp)
+      (give:hc [%pending (wait-of:hc pp)])
     ==
   ::
   ::  ---- the interface -------------------------------------------------------
@@ -349,10 +398,12 @@
         %invite
       =/  f=feed  [src.bowl path.gos]
       ?:  (~(has by subs) f)  `this
-      =/  ss  (~(put by subs) f first)
-      :_  this(subs ss)
-      :-  (tail:hc f first)
-      (give:hc (peers-of:hc ss off))
+      ?:  (~(has by pending) f)  `this
+      ::  any ship may invite us, so bound what one of them can park here
+      ?:  (gte (waiting:hc src.bowl) 8)  `this
+      =/  pp  (~(put by pending) f lyst.gos)
+      :_  this(pending pp)
+      (give:hc [%pending (wait-of:hc pp)])
     ::
         %announce
       =/  f=feed  [src.bowl /index]
@@ -374,7 +425,7 @@
       [%http-response *]  `this
       [%updates ~]   `this
       [%ui %wall ~]   :_(this ~[(gift:hc wall-now:hc)])
-      [%ui %lists ~]  :_(this ~[(gift:hc lists-now:hc)])
+      [%ui %lists ~]  :_(this ~[(gift:hc lists-now:hc) (gift:hc pending-now:hc)])
       [%ui %peers ~]  :_(this ~[(gift:hc peers-now:hc)])
   ::
       [%ui %body @ *]
@@ -552,6 +603,23 @@
   |-  ^-  (map lyst (set ship))
   ?~  ls  ~
   (~(put by $(ls t.ls)) p.i.ls members.q.i.ls)
+::
+++  wait-of
+  |=  m=(map feed lyst)
+  ^-  (list [=feed =lyst])
+  =/  fs=(list [p=feed q=lyst])  ~(tap by m)
+  |-  ^-  (list [=feed =lyst])
+  ?~  fs  ~
+  [[p.i.fs q.i.fs] $(fs t.fs)]
+::
+++  waiting
+  |=  who=ship
+  ^-  @ud
+  =/  fs=(list [p=feed q=lyst])  ~(tap by pending)
+  |-  ^-  @ud
+  ?~  fs  0
+  ?.  =(who ship.p.i.fs)  $(fs t.fs)
+  +($(fs t.fs))
 ::
 ++  wipe-logs
   |=  m=(map lyst roster)
@@ -766,7 +834,7 @@
 ::
 ++  vw  ~(. ui view-now)
 ::
-++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~])
+++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~ ~])
 ::
 ++  view-now
   ^-  view:ui
@@ -777,6 +845,7 @@
       follows
       off
       roll-list
+      (wait-of pending)
   ==
 ::
 ++  live-pals
@@ -949,6 +1018,15 @@
   ?:  =(key -.i.q)  +.i.q
   $(q t.q)
 ::
+::  rush not stab: stab crashes on anything that is not a path, and this one
+::  arrives from a form field
+++  invite-of
+  |=  q=(list [@t @t])
+  ^-  (unit feed)
+  ?~  who=(slaw %p (arg q 'who'))  ~
+  ?~  pat=(rush (arg q 'path') stap)  ~
+  `[u.who u.pat]
+::
 ++  self
   |=  act=action:keep
   ^-  (list card)
@@ -1013,6 +1091,14 @@
     ?~  who=(slaw %p (arg q 'who'))  ~
     (self [%unsub u.who])
   ::
+  ?:  =('accept' what)
+    ?~  f=(invite-of q)  ~
+    (self [%accept u.f])
+  ::
+  ?:  =('reject' what)
+    ?~  f=(invite-of q)  ~
+    (self [%reject u.f])
+  ::
   ?:  =('make' what)
     ?~  nom=(slaw %tas (arg q 'name'))  ~
     ?:  =(%public u.nom)  ~
@@ -1047,6 +1133,7 @@
     %arrived  /ui/wall
     %head     /ui/wall
     %lists    /ui/lists
+    %pending  /ui/lists
     %peers    /ui/peers
     %body     (welp /ui/body/[(scot %p ship.entry.u)] path.entry.u)
   ==
@@ -1061,7 +1148,8 @@
   ^-  update:keep
   [%peers (ships-of s) o]
 ::
-++  wall-now   ^-(update:keep [%wall wall heads])
-++  lists-now  (lists-of lists)
-++  peers-now  (peers-of subs off)
+++  wall-now     ^-(update:keep [%wall wall heads])
+++  lists-now    (lists-of lists)
+++  peers-now    (peers-of subs off)
+++  pending-now  ^-(update:keep [%pending (wait-of pending)])
 --
