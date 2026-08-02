@@ -10,7 +10,7 @@ git module base-dev:
     - pkg/base-dev/mar
     - pkg/base-dev/lib
     - pkg/base-dev/sur
-  rev: bd3973dc97c0f4ac8eae5fddfa15c39d522eb8d0
+  rev: 0a9a312e133891937de9c4df1ebecad5cf669c7c
 
 git module landscape-dev:
   url: https://github.com/tloncorp/landscape
