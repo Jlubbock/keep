@@ -130,7 +130,8 @@ form { margin: 0; }
 
 /* ---- reader ----------------------------------------------------------- */
 
-.k-read { max-width: 65ch; margin: 0 auto; }
+/* 620px is substack's post measure — px not ch, which drifts with font-size */
+.k-read { max-width: 620px; margin: 0 auto; }
 .k-back {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #d0c9bb;
   display: inline-block; margin-bottom: 44px; transition: color .3s ease;
