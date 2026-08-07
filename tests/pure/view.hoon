@@ -12,7 +12,7 @@
 ++  row-of
   |=  [via=ship e=entry:keep h=(unit head:keep)]
   ^-  row:ui
-  [via e h %.n %.n ~ ~]
+  [via e h %.n %.n ~ ~ ~]
 ::
 ++  test-last-of-empty
   ^-  tang

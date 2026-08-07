@@ -10,6 +10,8 @@
       pub=?                              ::  did it reach us publicly
       site=(unit @t)                     ::  its url on the open web, if ours
       okay=(unit verdict:keep)
+      ::  a list name is a capability hint — empty on every clearnet row
+      on=(list lyst:keep)                ::  where we fanned it, ours only
   ==
 ::
 +$  view
@@ -61,6 +63,25 @@
   ?~  hed  "—"
   ?~  title.u.hed  "untitled"
   (trip u.title.u.hed)
+::
+++  aud-name
+  |=  l=lyst:keep
+  ^-  tape
+  ?:(=(%public l) "everyone" (trip l))
+::
+++  dotted
+  |=  ls=(list tape)
+  ^-  tape
+  ?~  ls  ""
+  ?~  t.ls  i.ls
+  "{i.ls} · {$(ls t.ls)}"
+::
+++  on-tag
+  |=  [r=row pre=tape]
+  ^-  (list manx)
+  ?~  on.r  ~
+  :_  ~
+  ;span.k-on: {pre}{(dotted (turn on.r aud-name))}
 ::
 ++  nowt  ;/("")                         ::  an element that must not self-close
 ::
@@ -145,7 +166,7 @@
   ^-  (list manx)
   ?.  =(our.v ship.entry.r)  ~
   :_  ~
-  ;a(href "/keep/edit/{(id-of entry.r)}", class "k-edit"): {label}
+  ;a(href "/keep/edit/{(id-of entry.r)}/{(pp our.v)}", class "k-edit"): {label}
 ::
 ++  delete-control
   |=  [r=row back=tape label=tape]
@@ -183,8 +204,8 @@
         ;div.k-via: ↻ {(pp (author r))}
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
+      ;*  (on-tag r "")
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
-      ;*  (edit-control r "✎")
       ;*  (delete-control r back "×")
     ==
   ==
@@ -262,6 +283,7 @@
       ;*  ?~  site.r  ~
           :_  ~
           ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
+      ;*  (on-tag r "to ")
       ;*  (edit-control r "edit")
       ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
     ==

@@ -304,7 +304,7 @@
         =/  art=card
           %+  cache:hc  url
           %-  manx-response:gen:srv
-          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~] page.act)
+          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act)
         ~[art (index-card:hc new-sites new-posts)]
       :_  this(posts new-posts, sites new-sites)
       :(weld grows cards web (give:hc [%posted id entry]))
@@ -917,7 +917,7 @@
     ?~  ls  ~
     ?~  got=(~(get by ps) q.i.ls)  $(ls t.ls)
     =/  e=entry  [our.bowl (welp (base first) (item-spur q.i.ls))]
-    [[our.bowl e `head.u.got %.y %.n `p.i.ls ~] $(ls t.ls)]
+    [[our.bowl e `head.u.got %.y %.n `p.i.ls ~ ~] $(ls t.ls)]
   (by-date rs)
 ::
 ++  index-card
@@ -999,6 +999,12 @@
   =/  more  $(ls t.ls)
   ?:((has-entry log.q.i.ls e) (~(put in more) p.i.ls) more)
 ::
+++  on-of
+  |=  e=entry
+  ^-  (list lyst)
+  ?.  =(our.bowl ship.e)  ~
+  ~(tap in (fanned e))
+::
 ++  head-of
   |=  e=entry
   ^-  (unit head:keep)
@@ -1010,7 +1016,7 @@
 ++  row-of
   |=  [via=ship e=entry]
   ^-  row:ui
-  [via e (head-of e) (kept e) (from-public e) (site-of e) (~(get by checked) e)]
+  [via e (head-of e) (kept e) (from-public e) (site-of e) (~(get by checked) e) (on-of e)]
 ::
 ++  feed-rows
   ^-  (list row:ui)
@@ -1042,7 +1048,7 @@
     |-  ^-  (list row:ui)
     ?~  ps  ~
     =/  e=entry  [our.bowl (welp (base first) (item-spur p.i.ps))]
-    [[our.bowl e `head.q.i.ps %.y %.n (site-of e) ~] $(ps t.ps)]
+    [[our.bowl e `head.q.i.ps %.y %.n (site-of e) ~ (on-of e)] $(ps t.ps)]
   =/  theirs=(list row:ui)
     =/  es=(list entry)  ~(tap in kept-entries)
     |-  ^-  (list row:ui)
@@ -1098,7 +1104,9 @@
       [%keep ~]        (render rid (feed-page:vw feed-rows))
       [%keep %write ~]  (render rid (write-page:vw ~))
   ::
-      [%keep %edit @ ~]
+  ::  id first, ship last, like /keep/read: eyre makes its ext from the
+  ::  final dot of the LAST segment, and a @uv id is full of dots
+      [%keep %edit @ @ ~]
     ?~  i=(slaw %uv i.t.t.seg)  (paint rid not-found:gen:srv)
     ?~  got=(~(get by posts) u.i)  (paint rid not-found:gen:srv)
     ?.  =(%md p.page.u.got)  (paint rid not-found:gen:srv)
@@ -1106,12 +1114,12 @@
     =/  src=tape
       ?~  title.head.u.got  bod
       "# {(trip u.title.head.u.got)}\0a\0a{bod}"
-    =/  to=(list lyst)
-      ~(tap in (fanned [our.bowl (welp (base first) (item-spur u.i))]))
+    =/  on=(set lyst)
+      (fanned [our.bowl (welp (base first) (item-spur u.i))])
     =/  aud=tape
-      ?~  to  "everyone"
-      ?:  (lien to |=(l=lyst =(%public l)))  "everyone"
-      (trip i.to)
+      ?:  (~(has in on) %public)  "everyone"
+      =/  to=(list lyst)  ~(tap in on)
+      ?~(to "everyone" (trip i.to))
     (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud]))
   ::
       [%keep %lists ~]  (render rid (lists-page:vw ~))
