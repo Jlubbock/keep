@@ -140,6 +140,13 @@
     ;button(type "submit", class "k-link k-re"): {label}
   ==
 ::
+++  edit-control
+  |=  [r=row label=tape]
+  ^-  (list manx)
+  ?.  =(our.v ship.entry.r)  ~
+  :_  ~
+  ;a(href "/keep/edit/{(id-of entry.r)}", class "k-edit"): {label}
+::
 ++  delete-control
   |=  [r=row back=tape label=tape]
   ^-  (list manx)
@@ -177,6 +184,7 @@
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
+      ;*  (edit-control r "✎")
       ;*  (delete-control r back "×")
     ==
   ==
@@ -254,6 +262,7 @@
       ;*  ?~  site.r  ~
           :_  ~
           ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
+      ;*  (edit-control r "edit")
       ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
     ==
     ;*  ?~  bod  ~
@@ -329,23 +338,30 @@
   ==
 ::
 ++  write-page
+  |=  pre=(unit [id=tape src=tape to=tape])
   ^-  manx
+  =/  aud=tape  ?~(pre "everyone" to.u.pre)
   %+  shell  %write
   ;div.k-read
     ;div.k-ed-meta
       ;div.k-to
         ;span.lbl: to
-        ;a(href "#", class "on", data-to "everyone"): everyone
+        ;a(href "#", class "{?:(=("everyone" aud) "on" "")}", data-to "everyone"): everyone
         ;*  %+  turn  rolls.v
             |=  [=lyst:keep members=(set ship)]
-            ;a(href "#", data-to "{(trip lyst)}"): {(trip lyst)}
+            =/  nom=tape  (trip lyst)
+            ;a(href "#", class "{?:(=(nom aud) "on" "")}", data-to "{nom}"): {nom}
       ==
       ;div.k-pub
         ;span(id "k-words", class "k-words"): 0 words
         ;a(href "#", id "k-send", class "k-send"): publish
       ==
     ==
-    ;input(type "hidden", id "k-audience", value "everyone");
+    ;input(type "hidden", id "k-audience", value "{aud}");
+    ;*  ?~  pre  ~
+        :~  ;input(type "hidden", id "k-edit-id", value "{id.u.pre}");
+            ;div(id "k-ed-src", hidden ""): {src.u.pre}
+        ==
     ;div(id "k-ed", class "k-ed", contenteditable "true", spellcheck "false")
       ;+  nowt
     ==

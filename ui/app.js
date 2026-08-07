@@ -467,11 +467,31 @@
     setCaretRaw(d, 2);
   }
 
+  // an edit opens on the post's raw markdown: one div per source line, the
+  // same shape restore() builds, with the caret parked at the end
+  function fill(el, src) {
+    el.innerHTML = '';
+    src.split('\n').forEach(function (t) {
+      var d = document.createElement('div');
+      if (t) d.textContent = t;
+      else d.innerHTML = '<br>';
+      el.appendChild(d);
+    });
+    el.focus();
+    var last = el.lastElementChild;
+    if (last) setCaretRaw(last, rawOf(last).length);
+  }
+
   function editor() {
     var el = document.getElementById('k-ed');
     if (!el) return;
 
-    if (!el.children.length) seed(el);
+    var init = document.getElementById('k-ed-src');
+    var editId = document.getElementById('k-edit-id');
+    if (!el.children.length) {
+      if (init) fill(el, init.textContent);
+      else seed(el);
+    }
 
     var count = document.getElementById('k-words');
     var send = document.getElementById('k-send');
@@ -624,24 +644,34 @@
         if (!src) return;
         var parts = split(src);
         send.textContent = '…';
+        var fields = {
+          what: editId ? 'edit' : 'publish',
+          body: parts.body,
+          title: parts.title,
+          to: audience.value
+        };
+        if (editId) fields.id = editId.value;
         fetch('/keep/write', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/x-www-form-urlencoded' },
-          body: form({
-            what: 'publish',
-            body: parts.body,
-            title: parts.title,
-            to: audience.value
-          })
+          body: form(fields)
         }).then(function (r) {
           send.textContent = r.ok ? 'sent' : 'failed';
-          if (r.ok) {
-            seed(el);
-            undoStack.length = 0;
-            redoStack.length = 0;
-            refresh();
+          if (!r.ok) return;
+          if (editId) {
+            // the replacement has a new id, so there is no read page to
+            // return to yet; the ship page shows it once the pokes land
+            var mine = document.querySelector('.k-nav a.mono');
+            setTimeout(function () {
+              window.location = mine ? mine.getAttribute('href') : '/keep';
+            }, 600);
+            return;
           }
+          seed(el);
+          undoStack.length = 0;
+          redoStack.length = 0;
+          refresh();
         }).catch(function () { send.textContent = 'failed'; });
       });
     }

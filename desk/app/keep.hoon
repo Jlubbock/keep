@@ -990,6 +990,15 @@
 ++  has-entry   has-entry:kc
 ++  drop-entry  drop-entry:kc
 ::
+++  fanned
+  |=  e=entry
+  ^-  (set lyst)
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  |-  ^-  (set lyst)
+  ?~  ls  ~
+  =/  more  $(ls t.ls)
+  ?:((has-entry log.q.i.ls e) (~(put in more) p.i.ls) more)
+::
 ++  head-of
   |=  e=entry
   ^-  (unit head:keep)
@@ -1087,7 +1096,24 @@
     (paint rid (js-response:gen:srv (as-octs:mimes:html app-js)))
   ::
       [%keep ~]        (render rid (feed-page:vw feed-rows))
-      [%keep %write ~]  (render rid write-page:vw)
+      [%keep %write ~]  (render rid (write-page:vw ~))
+  ::
+      [%keep %edit @ ~]
+    ?~  i=(slaw %uv i.t.t.seg)  (paint rid not-found:gen:srv)
+    ?~  got=(~(get by posts) u.i)  (paint rid not-found:gen:srv)
+    ?.  =(%md p.page.u.got)  (paint rid not-found:gen:srv)
+    =/  bod=tape  ?:(?=(@ q.page.u.got) (trip q.page.u.got) "")
+    =/  src=tape
+      ?~  title.head.u.got  bod
+      "# {(trip u.title.head.u.got)}\0a\0a{bod}"
+    =/  to=(list lyst)
+      ~(tap in (fanned [our.bowl (welp (base first) (item-spur u.i))]))
+    =/  aud=tape
+      ?~  to  "everyone"
+      ?:  (lien to |=(l=lyst =(%public l)))  "everyone"
+      (trip i.to)
+    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud]))
+  ::
       [%keep %lists ~]  (render rid (lists-page:vw ~))
       [%keep %lists @ ~]
     (render rid (lists-page:vw (slaw %tas i.t.t.seg)))
@@ -1155,7 +1181,7 @@
     ?~  who=(slaw %p (arg q 'who'))  ?:(=('' back) '/keep' back)
     (crip "/keep/ship/{(scow %p u.who)}")
   %+  weld  (act-of q what)
-  ?:  =('publish' what)
+  ?:  |(=('publish' what) =('edit' what))
     (paint rid [[200 ~] ~])
   (paint rid (bounce ?:(=('' back) '/keep' back)))
 ::
@@ -1180,6 +1206,24 @@
     :^  %post  [%md bod]
       ?:(=('' tit) ~ `tit)
     ['' (sy ~[u.aud])]
+  ::
+  ?:  =('edit' what)
+    ?~  i=(slaw %uv (arg q 'id'))  ~
+    ?~  old=(~(get by posts) u.i)  ~
+    =/  bod=@t  (arg q 'body')
+    ?:  =('' bod)  ~
+    =/  tit=@t  (arg q 'title')
+    =/  to=@t   (arg q 'to')
+    =/  aud=(unit lyst)
+      ?:(=('everyone' to) `%public (slaw %tas to))
+    ?~  aud  ~
+    ::  two pokes, not one branch: %post reads the freed slug and the
+    ::  pruned list logs only after %delete's event has committed
+    %+  weld  (self [%delete u.i])
+    %-  self
+    :^  %post  [%md bod]
+      ?:(=('' tit) ~ `tit)
+    [terms.head.u.old (sy ~[u.aud])]
   ::
   ?:  =('repost' what)
     ?~  who=(slaw %p (arg q 'who'))  ~
