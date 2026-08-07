@@ -28,8 +28,7 @@
   // null for a url we will not link: an unknown scheme renders as plain
   // text rather than a dead href, which would swallow the click
   function href(url) {
-    // esc() ran first, so a raw < here is a tag the rules above injected
-    // into what the author wrote as a url — not a url, and not linkable
+    // esc() ran first, so a raw < here is injected markup, never author text
     if (/[<>]/.test(url)) return null;
     var bare = url.replace(/[\u0000-\u0020]/g, '');
     var got = SCHEME.exec(bare);
@@ -37,20 +36,44 @@
     return ALLOWED[got[1].toLowerCase()] ? url : null;
   }
 
+  // passes run in binding order — code, escapes, links, emphasis — and each
+  // resolved piece parks in a NUL-fenced slot no later pass can re-enter
   function inline(s) {
-    return esc(s)
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-      .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/\[(.+?)\]\((.+?)\)/g, function (_, text, url) {
+    var NUL = String.fromCharCode(0);
+    var slots = [];
+    function keep(html) { slots.push(html); return NUL + (slots.length - 1) + NUL; }
+    s = s.split(NUL).join('');
+    s = s.replace(/`([^`]+)`/g, function (_, code) {
+      return keep('<code>' + esc(code) + '</code>');
+    });
+    s = s.replace(/\\([!-\/:-@\[-`{-~])/g, function (_, c) { return keep(esc(c)); });
+    s = esc(s);
+    s = s.replace(
+      /!?\[([^\[\]]+)\]\(\s*((?:[^\s()]|\([^\s()]*\))*)(?:\s+(?:&quot;(.*?)&quot;|&#39;(.*?)&#39;))?\s*\)/g,
+      function (_, text, url, dq, sq) {
         var to = href(url);
-        return to === null ? text : '<a href="' + to + '">' + text + '</a>';
+        if (to === null) return text;
+        var title = dq || sq || '';
+        return keep('<a href="' + to + '"' + (title ? ' title="' + title + '"' : '') + '>') +
+          text + keep('</a>');
       });
+    s = s.replace(/\*\*\*(\S(?:.*?\S)?)\*\*\*/g, '<em><strong>$1</strong></em>');
+    s = s.replace(/\*\*(\S(?:.*?\S)?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^\s*](?:[^*]*?[^\s*])?)\*/g, '$1<em>$2</em>');
+    while (s.indexOf(NUL) !== -1) {
+      s = s.replace(new RegExp(NUL + '(\\d+)' + NUL, 'g'), function (_, i) { return slots[+i]; });
+    }
+    return s;
   }
 
+  // standard breaks: consecutive lines are one paragraph with line breaks
+  // inside it; a blank line ends the paragraph and yields the paragraph gap
   function md(src) {
-    var out = [], ul = false;
-    function close() { if (ul) { out.push('</ul>'); ul = false; } }
+    var out = [], ul = false, para = [];
+    function close() {
+      if (ul) { out.push('</ul>'); ul = false; }
+      if (para.length) { out.push('<p>' + para.join('<br>') + '</p>'); para = []; }
+    }
     src.split('\n').forEach(function (line) {
       var t = line.trim();
       if (!t) { close(); return; }
@@ -63,12 +86,13 @@
         return;
       }
       if (/^[-*]\s/.test(t)) {
+        if (para.length) close();
         if (!ul) { out.push('<ul>'); ul = true; }
         out.push('<li>' + inline(t.slice(2)) + '</li>');
         return;
       }
-      close();
-      out.push('<p>' + inline(t) + '</p>');
+      if (ul) close();
+      para.push(inline(t));
     });
     close();
     return out.join('');
@@ -114,26 +138,32 @@
 
   var TOKEN = /^(#{1,3} |> ?|[-*] )/;
 
-  // textContent drops <br>, so a line the browser kept as `a<br>b` would
-  // arrive as one line and render as one flat paragraph. walk it instead.
+  // the DOM is the source of truth: hidden .tok spans hold real raw chars
+  // (count them), the bullet glyph does not (skip it). a merge from a
+  // deleted neighbour line then reads back correctly with no stale cache.
   function textOf(n) {
+    // no element children means no BRs, toks, or bullets to special-case,
+    // and native textContent beats the walk — most lines take this path
+    if (!n.firstElementChild) return n.textContent;
     var out = '';
     Array.prototype.slice.call(n.childNodes).forEach(function (c) {
       if (c.nodeType === 3) out += c.textContent;
       else if (c.nodeName === 'BR') out += '\n';
-      else if (c.dataset && c.dataset.hide === '1') return;
+      else if (c.classList && c.classList.contains('bullet')) return;
       else out += textOf(c);
     });
     return out;
   }
 
+  // an empty line is <div><br></div>: one trailing break, not a new line
   function rawOf(n) {
-    if (n.dataset && n.dataset.decor) return n.dataset.raw || '';
-    // an empty line is <div><br></div>: one trailing break, not a new line
-    return textOf(n).replace(/\n$/, '');
+    return textOf(n).replace(/\n$/, '').replace(/​/g, '');
   }
 
-  function visibleOffset(n) {
+  // decorated lines keep every raw char in the DOM — markers in hidden .tok
+  // spans — so counting hidden text (but not the bullet glyph, which is not
+  // raw) turns the caret's visible position into an exact raw offset
+  function rawCaret(n) {
     var sel = window.getSelection();
     if (!sel || !sel.anchorNode || !n.contains(sel.anchorNode)) return null;
     var off = 0, done = false;
@@ -144,26 +174,180 @@
         else off += node.textContent.length;
         return;
       }
-      if (node.nodeType === 1 && node.dataset.hide === '1') return;
+      if (node.nodeName === 'BR') { off += 1; return; }
+      if (node.nodeType === 1 && node.classList.contains('bullet')) return;
       Array.prototype.slice.call(node.childNodes).forEach(walk);
     }
     Array.prototype.slice.call(n.childNodes).forEach(walk);
     return done ? off : null;
   }
 
-  function setCaret(n, offset) {
-    var t = n.firstChild;
-    if (!t || t.nodeType !== 3) return;
+  // inverse of rawCaret: the visible text node holding raw offset `target`,
+  // counting hidden marker text without ever landing the caret inside it
+  function setCaretRaw(n, target) {
+    var node = null, off = 0, last = null, acc = 0;
+    function walk(c) {
+      if (node) return;
+      if (c.nodeType === 3) {
+        last = c;
+        if (acc + c.textContent.length >= target) { node = c; off = target - acc; }
+        else acc += c.textContent.length;
+        return;
+      }
+      if (c.nodeType !== 1) return;
+      if (c.classList.contains('bullet')) return;
+      if (c.classList.contains('tok')) { acc += c.textContent.length; return; }
+      Array.prototype.slice.call(c.childNodes).forEach(walk);
+    }
+    Array.prototype.slice.call(n.childNodes).forEach(walk);
     var r = document.createRange();
-    r.setStart(t, Math.max(0, Math.min(offset, t.textContent.length)));
+    if (node) r.setStart(node, Math.max(0, Math.min(off, node.textContent.length)));
+    else if (last) r.setStart(last, last.textContent.length);
+    else r.setStart(n, 0);
     r.collapse(true);
     var sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(r);
   }
 
+  // a cleared canvas takes typed text as a bare node beside the line divs,
+  // and a bare node cannot carry a line class — box it before styling
+  function normalize(el) {
+    var sel = window.getSelection();
+    var focus = sel && sel.anchorNode;
+    var focusOff = sel ? sel.anchorOffset : 0;
+    var moved = false;
+    Array.prototype.slice.call(el.childNodes).forEach(function (n) {
+      if (n.nodeType !== 3 && n.nodeName !== 'BR') return;
+      var d = document.createElement('div');
+      el.replaceChild(d, n);
+      d.appendChild(n);
+      if (n === focus) moved = true;
+    });
+    if (moved) {
+      var r = document.createRange();
+      r.setStart(focus, focusOff);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    // pasted text can land as one div with <br>s inside; give each source
+    // line its own div, or several lines style, break, and publish as one
+    Array.prototype.slice.call(el.children).forEach(function (n) {
+      if (!n.firstElementChild) return;
+      if (!n.querySelector('br')) return;
+      var raw = rawOf(n);
+      if (raw.indexOf('\n') === -1) return;
+      var at = rawCaret(n);
+      var caretDiv = null, caretOff = 0, seen = 0;
+      raw.split('\n').forEach(function (part) {
+        var d = document.createElement('div');
+        if (part) d.textContent = part;
+        else d.innerHTML = '<br>';
+        el.insertBefore(d, n);
+        if (at !== null && !caretDiv && at <= seen + part.length) {
+          caretDiv = d;
+          caretOff = at - seen;
+        }
+        seen += part.length + 1;
+      });
+      el.removeChild(n);
+      if (caretDiv) setCaretRaw(caretDiv, caretOff);
+    });
+  }
+
+  function tok(s) {
+    var h = document.createElement('span');
+    h.className = 'tok';
+    h.textContent = s;
+    return h;
+  }
+
+  // inline tokens in the reader's binding order: code, escapes, links,
+  // emphasis. `open` is the leading marker length; s..e span the raw text.
+  function scanInline(raw) {
+    var segs = [], i = 0, from = 0, prev = '';
+    function text(end) { if (from < end) segs.push({ kind: 'text', s: from, e: end }); }
+    while (i < raw.length) {
+      var rest = raw.slice(i), m = null, seg = null;
+      if ((m = /^`([^`]+)`/.exec(rest))) seg = { kind: 'code', body: m[1], open: 1 };
+      else if ((m = /^\\([!-\/:-@\[-`{-~])/.exec(rest))) seg = { kind: 'esc', body: m[1], open: 1 };
+      else if ((m = /^!?\[([^\[\]]+)\]\((?:[^\s()]|\([^\s()]*\))*(?:\s+(?:"[^"]*"|'[^']*'))?\)/.exec(rest)))
+        seg = { kind: 'link', body: m[1], open: m[0].indexOf('[') + 1 };
+      else if ((m = /^\*\*\*(\S(?:.*?\S)?)\*\*\*/.exec(rest))) seg = { kind: 'bi', body: m[1], open: 3 };
+      else if ((m = /^\*\*(\S(?:.*?\S)?)\*\*/.exec(rest))) seg = { kind: 'b', body: m[1], open: 2 };
+      else if (prev !== '*' && (m = /^\*([^\s*](?:[^*]*?[^\s*])?)\*/.exec(rest)))
+        seg = { kind: 'i', body: m[1], open: 1 };
+      if (!seg) { prev = raw[i]; i += 1; continue; }
+      text(i);
+      seg.s = i;
+      seg.e = i + m[0].length;
+      segs.push(seg);
+      prev = '';
+      from = i = seg.e;
+    }
+    text(raw.length);
+    return segs;
+  }
+
+  var INLINE_CLASS = { code: 'ed-code', b: 'ed-b', i: 'ed-i', bi: 'ed-bi', link: 'ed-link' };
+
+  // caret is a raw offset or null: the token enclosing it (boundaries
+  // inclusive, so approaching from either side reveals first) renders as
+  // raw source — the obsidian reveal. every raw char lands in the output,
+  // markers hidden never dropped, or rawCaret's offsets go wrong.
+  function buildInline(parent, raw, caret) {
+    scanInline(raw).forEach(function (seg) {
+      var src = raw.slice(seg.s, seg.e);
+      if (seg.kind === 'text' || (caret !== null && caret >= seg.s && caret <= seg.e)) {
+        parent.appendChild(document.createTextNode(src));
+        return;
+      }
+      parent.appendChild(tok(src.slice(0, seg.open)));
+      if (seg.kind === 'esc') {
+        parent.appendChild(document.createTextNode(seg.body));
+      } else if (seg.kind === 'code') {
+        // literal, never recursed: marks inside a code span are not marks
+        var c = document.createElement('span');
+        c.className = 'ed-code';
+        c.textContent = seg.body;
+        parent.appendChild(c);
+      } else {
+        var s = document.createElement('span');
+        s.className = INLINE_CLASS[seg.kind];
+        buildInline(s, seg.body, null);
+        parent.appendChild(s);
+      }
+      var tail = src.slice(seg.open + seg.body.length);
+      if (tail) parent.appendChild(tok(tail));
+    });
+  }
+
+  function buildLine(n, raw, prefix, active, caret) {
+    n.innerHTML = '';
+    if (!raw) { n.innerHTML = '<br>'; return; }
+    if (prefix) {
+      if (active) {
+        n.appendChild(document.createTextNode(prefix));
+      } else {
+        if (/^[-*] /.test(prefix)) {
+          var b = document.createElement('span');
+          b.contentEditable = 'false';
+          b.className = 'bullet';
+          b.textContent = '•';
+          n.appendChild(b);
+        }
+        n.appendChild(tok(prefix));
+      }
+    }
+    var rest = raw.slice(prefix.length);
+    if (rest) buildInline(n, rest, caret);
+    else if (!active) n.appendChild(document.createTextNode('​'));
+  }
+
   function lineClass(raw) {
     var t = raw.trim();
+    if (!t) return 'blank';
     if (/^###\s/.test(t)) return 'h3';
     if (/^##\s/.test(t)) return 'h2';
     if (/^#\s/.test(t)) return 'h1';
@@ -172,51 +356,56 @@
     return '';
   }
 
+  // a WeakMap, not a data attribute: the browser clones attributes when
+  // enter splits a line, and a cloned signature would skip the rebuild
+  var lineSig = new WeakMap();
+
+  // one pass serves styling, the source text, and the undo snapshot's
+  // caret, so nothing downstream re-reads the line DOM
   function styleLines(el) {
     var sel = window.getSelection();
-    Array.prototype.slice.call(el.children).forEach(function (n) {
+    var raws = [], caretLine = 0, caretOff = 0;
+    Array.prototype.slice.call(el.children).forEach(function (n, idx) {
       var raw = rawOf(n);
+      raws.push(raw);
       var pm = raw.match(TOKEN);
       var prefix = pm ? pm[1] : '';
       var active = !!(sel && sel.anchorNode && n.contains(sel.anchorNode));
-
-      if (active && n.dataset.decor) {
-        var vis = visibleOffset(n);
-        var plen = n.dataset.plen ? +n.dataset.plen : 0;
-        delete n.dataset.decor;
-        n.textContent = raw;
-        if (!raw) n.innerHTML = '<br>';
-        if (vis !== null) setCaret(n, vis + plen);
-        delete n.dataset.plen;
-      } else if (!active && prefix && !n.dataset.decor) {
-        var rest = raw.slice(prefix.length);
-        n.dataset.raw = raw;
-        n.dataset.decor = '1';
-        n.dataset.plen = String(prefix.length);
-        n.innerHTML = '';
-        if (/^[-*] /.test(prefix)) {
-          var b = document.createElement('span');
-          b.contentEditable = 'false';
-          b.dataset.hide = '1';
-          b.className = 'bullet';
-          b.textContent = '•';
-          n.appendChild(b);
-        }
-        var h = document.createElement('span');
-        h.dataset.hide = '1';
-        h.className = 'tok';
-        h.textContent = prefix;
-        n.appendChild(h);
-        n.appendChild(document.createTextNode(rest || '​'));
-      } else if (!active && !prefix && n.dataset.decor) {
-        delete n.dataset.decor;
-        delete n.dataset.plen;
-        n.textContent = raw;
-        if (!raw) n.innerHTML = '<br>';
+      var caret = active ? rawCaret(n) : null;
+      var cRel = caret === null ? null : Math.max(0, caret - prefix.length);
+      if (active) {
+        caretLine = idx;
+        caretOff = caret === null ? 0 : caret;
       }
 
-      n.className = lineClass(raw);
+      var segs = null, hole = '';
+      if (cRel !== null) {
+        segs = scanInline(raw.slice(prefix.length));
+        for (var j = 0; j < segs.length; j++) {
+          if (segs[j].kind !== 'text' && cRel >= segs[j].s && cRel <= segs[j].e) {
+            hole = segs[j].s + '-' + segs[j].e;
+            break;
+          }
+        }
+      }
+
+      var sig = (active ? 'a|' : 'n|') + hole + '|' + raw;
+      if (lineSig.get(n) !== sig) {
+        lineSig.set(n, sig);
+        // the hot path is typing plain prose: an active line with no marks
+        // is already the single text run a build would produce, and
+        // skipping the rebuild also leaves the browser's caret untouched
+        var plain = active && hole === '' && !n.firstElementChild && n.firstChild &&
+          segs !== null && segs.every(function (g) { return g.kind === 'text'; });
+        if (!plain) {
+          buildLine(n, raw, prefix, active, cRel);
+          if (caret !== null) setCaretRaw(n, caret);
+        }
+      }
+      var lc = lineClass(raw);
+      if (n.className !== lc) n.className = lc;
     });
+    return { raws: raws, line: caretLine, off: caretOff };
   }
 
   // childNodes, not children: a browser may leave typed text as a bare text
@@ -245,7 +434,9 @@
   function split(src) {
     var lines = src.split('\n');
     for (var i = 0; i < lines.length; i++) {
-      var m = lines[i].match(/^#\s+(.*\S)/);
+      // md() trims each line before matching, so an indented `# x` renders
+      // as an h1 — match it here too or it styles as a title and isn't one
+      var m = lines[i].trim().match(/^#\s+(.*\S)/);
       if (m) {
         var rest = lines.slice(0, i).concat(lines.slice(i + 1));
         while (rest.length && !rest[0].trim()) rest.shift();
@@ -273,7 +464,7 @@
     d.className = 'h1';
     el.appendChild(d);
     el.focus();
-    setCaret(d, 2);
+    setCaretRaw(d, 2);
   }
 
   function editor() {
@@ -286,17 +477,134 @@
     var send = document.getElementById('k-send');
     var audience = document.getElementById('k-audience');
 
-    var refresh = function () {
-      styleLines(el);
-      if (count) {
-        var n = words(source(el));
+    // rebuilding a line mid-IME-composition cancels the composition
+    var composing = false;
+    el.addEventListener('compositionstart', function () { composing = true; });
+    el.addEventListener('compositionend', function () { composing = false; refresh(); });
+
+    // where the last refresh left the caret: a selectionchange that merely
+    // echoes it (every keystroke fires one) must not trigger a second full
+    // pass — that doubles the per-key work for nothing
+    var seenSel = { node: null, off: -1 };
+
+    // the count is display-only; four full-text regexes per keystroke is
+    // latency spent on a number nobody reads at keystroke speed
+    var countTimer = 0;
+    function scheduleCount(src) {
+      clearTimeout(countTimer);
+      countTimer = setTimeout(function () {
+        var n = words(src);
         count.textContent = n === 1 ? '1 word' : n + ' words';
-      }
+      }, 250);
+    }
+
+    var refresh = function () {
+      if (composing) return;
+      normalize(el);
+      var got = styleLines(el);
+      var src = got.raws.join('\n');
+      if (count) scheduleCount(src);
+      current = { src: src, line: got.line, off: got.off };
+      var sel = window.getSelection();
+      seenSel.node = sel ? sel.anchorNode : null;
+      seenSel.off = sel ? sel.anchorOffset : -1;
     };
+
+    // scripted line rebuilds invalidate the browser's undo stack, so the
+    // editor keeps its own: source text plus caret, rebuilt via restore()
+    var undoStack = [], redoStack = [], current = null;
+    var lastPush = 0, lastType = '';
+
+    function restore(s) {
+      el.innerHTML = '';
+      s.src.split('\n').forEach(function (t) {
+        var d = document.createElement('div');
+        if (t) d.textContent = t;
+        else d.innerHTML = '<br>';
+        el.appendChild(d);
+      });
+      el.focus();
+      var target = el.children[Math.min(s.line, el.children.length - 1)];
+      if (target) setCaretRaw(target, s.off);
+      lastType = '';
+      refresh();
+    }
+
+    function undo() {
+      if (!undoStack.length) return;
+      redoStack.push(current);
+      restore(undoStack.pop());
+    }
+
+    function redo() {
+      if (!redoStack.length) return;
+      undoStack.push(current);
+      restore(redoStack.pop());
+    }
+
+    // push the pre-edit state, coalescing runs of one input type so an
+    // undo step is a burst of typing, not a single character
+    el.addEventListener('beforeinput', function (e) {
+      if (e.inputType === 'historyUndo') { e.preventDefault(); undo(); return; }
+      if (e.inputType === 'historyRedo') { e.preventDefault(); redo(); return; }
+      if (!current) return;
+      var boundary = e.inputType !== lastType ||
+        Date.now() - lastPush > 900 ||
+        e.inputType === 'insertParagraph' ||
+        e.inputType === 'insertFromPaste';
+      if (!boundary) return;
+      undoStack.push(current);
+      if (undoStack.length > 200) undoStack.shift();
+      redoStack.length = 0;
+      lastPush = Date.now();
+      lastType = e.inputType;
+    });
+
+    // the model is markdown text; rich clipboard HTML would land as markup
+    // the line machine cannot classify, so force text/plain through the
+    // browser's own inserter (which keeps it on the undo stack)
+    el.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+      if (text) document.execCommand('insertText', false, text);
+    });
+
+    // native cmd-b inserts <b> nodes source() cannot see — bold that shows
+    // in the editor and vanishes on publish. write the markdown instead.
+    // ctrl-b on a mac is emacs caret movement, not bold — cmd only there
+    var chord = /Mac|iP/.test(navigator.platform)
+      ? function (e) { return e.metaKey && !e.ctrlKey; }
+      : function (e) { return e.ctrlKey && !e.metaKey; };
+    el.addEventListener('keydown', function (e) {
+      if (!chord(e) || e.altKey) return;
+      var k = e.key.toLowerCase();
+      if (k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if (k === 'y') { e.preventDefault(); redo(); return; }
+      if (k !== 'b' && k !== 'i' && k !== 'u') return;
+      e.preventDefault();
+      if (k === 'u') return;
+      var mark = k === 'b' ? '**' : '*';
+      var sel = window.getSelection();
+      var text = sel ? sel.toString() : '';
+      document.execCommand('insertText', false, mark + text + mark);
+      if (!text && sel && sel.modify) {
+        sel.modify('move', 'backward', 'character');
+        if (k === 'b') sel.modify('move', 'backward', 'character');
+      }
+    });
 
     el.addEventListener('input', refresh);
     document.addEventListener('selectionchange', function () {
-      if (document.activeElement === el) refresh();
+      if (document.activeElement !== el) return;
+      var sel = window.getSelection();
+      var node = sel ? sel.anchorNode : null;
+      var off = sel ? sel.anchorOffset : -1;
+      if (node === seenSel.node && off === seenSel.off) return;
+      refresh();
     });
 
     Array.prototype.slice.call(document.querySelectorAll('.k-to a')).forEach(function (a) {
@@ -328,7 +636,12 @@
           })
         }).then(function (r) {
           send.textContent = r.ok ? 'sent' : 'failed';
-          if (r.ok) { seed(el); refresh(); }
+          if (r.ok) {
+            seed(el);
+            undoStack.length = 0;
+            redoStack.length = 0;
+            refresh();
+          }
         }).catch(function () { send.textContent = 'failed'; });
       });
     }
