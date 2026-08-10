@@ -10,8 +10,16 @@
       pub=?                              ::  did it reach us publicly
       site=(unit @t)                     ::  its url on the open web, if ours
       okay=(unit verdict:keep)
+      re=(unit @t)                       ::  the quoted title, once we hold the body
       ::  a list name is a capability hint — empty on every clearnet row
       on=(list lyst:keep)                ::  where we fanned it, ours only
+  ==
+::
+::  a body parsed for rendering: one %body leaf per prose layer, one %quote
+::  per hosted response layer, each layer judged on its own signature
++$  bloc
+  $%  [%body =page]
+      [%quote hed=head:keep okay=verdict:keep quoted=bloc after=bloc]
   ==
 ::
 +$  view
@@ -63,6 +71,14 @@
   ?~  hed  "—"
   ?~  title.u.hed  "untitled"
   (trip u.title.u.hed)
+::
+::  a quoted article's address falls out of its head — no pointer is stored
+++  orig-entry
+  |=  hed=head:keep
+  ^-  entry:keep
+  =/  =id:keep
+    (sain:keep who.hed lyfe.hed wen.hed terms.hed title.hed hash.hed)
+  [who.hed /item/[(scot %uv id)]]
 ::
 ++  aud-name
   |=  l=lyst:keep
@@ -144,6 +160,53 @@
     ;div.k-clock: {(day now.v)}
   ==
 ::
+::  ---- bodies --------------------------------------------------------------
+::
+::  the browser renders prose (see app.js): each %body leaf ships its raw
+::  source next to the div it is painted into
+++  bloc-manx
+  |=  b=bloc
+  ^-  (list manx)
+  ?-    -.b
+      %body
+    :~  ;div(class "k-src", hidden "", data-mark "{(trip p.page.b)}"): {?:(?=(@ q.page.b) (trip q.page.b) "")}
+        ;div.k-body
+          ;+  nowt
+        ==
+    ==
+  ::
+      %quote
+    %+  weld  (bloc-manx after.b)
+    :_  ~
+    ;section.k-quote
+      ;div.k-quote-line
+        ;span.k-reply-mark: ↩
+        ;a(href "{(read-url (orig-entry hed.b))}", class "k-quote-title"): {(titled `hed.b)}
+        ;a(href "/keep/ship/{(pp who.hed.b)}", class "k-quote-who"): {(pp who.hed.b)}
+        ;span.k-quote-when: {(day wen.hed.b)}
+      ==
+      ;*  (layer-warn who.hed.b okay.b)
+      ;*  (bloc-manx quoted.b)
+    ==
+  ==
+::
+++  layer-warn
+  |=  [who=ship okay=verdict:keep]
+  ^-  (list manx)
+  ?:  ?=(%good okay)  ~
+  ?:  ?=(%forged okay)
+    :_  ~
+    ;div.k-warn: ⚠ this quotation does not match {(pp who)}'s signature — it may have been altered by whoever embedded it
+  :_  ~
+  ;div.k-warn: ⚠ nothing here shows {(pp who)} wrote this — it claims a key life we cannot fetch, so anyone could have embedded it
+::
+++  reply-tag
+  |=  r=row
+  ^-  (list manx)
+  ?~  re.r  ~
+  :_  ~
+  ;div.k-reply-tag: ↩ {(trip u.re.r)}
+::
 ::  ---- rows ----------------------------------------------------------------
 ::
 ++  repost-control
@@ -187,6 +250,7 @@
     ;*  ?:  =(via.r ship.entry.r)  ~
         :_  ~
         ;div.k-via: ↻ {(pp via.r)}
+    ;*  (reply-tag r)
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;a(href "/keep/ship/{(pp (author r))}", class "k-who"): {(pp (author r))}
@@ -202,6 +266,7 @@
     ;*  ?:  =(via.r ship.entry.r)  ~
         :_  ~
         ;div.k-via: ↻ {(pp (author r))}
+    ;*  (reply-tag r)
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;*  (on-tag r "")
@@ -263,12 +328,18 @@
   ==
 ::
 ++  read-page
-  |=  [r=row bod=(unit page)]
+  |=  [r=row bod=(unit bloc)]
   ^-  manx
   %+  shell  %read
   ;article.k-read
     ;a(href "/keep", class "k-back"): ←
     ;h1.k-art-title: {(titled hed.r)}
+    ;*  ?.  ?=([~ %quote *] bod)  ~
+        :_  ~
+        ;div.k-reply
+          ;span.k-reply-mark: ↩ in response to
+          ;a(href "{(read-url (orig-entry hed.u.bod))}"): {(titled `hed.u.bod)}
+        ==
     ;*  ?:  =(`%forged okay.r)
           :_  ~
           ;div.k-warn: ⚠ this does not match {(pp (author r))}'s signature — it may have been altered by whoever served it
@@ -280,6 +351,7 @@
       ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
       ;+  %^  repost-control  r  (read-url entry.r)
           ?:(kept.r "↻ reposted" "↻ repost")
+      ;a(href "/keep/respond/{(id-of entry.r)}/{(pp ship.entry.r)}", class "k-respond"): ↩ respond
       ;*  ?~  site.r  ~
           :_  ~
           ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
@@ -287,16 +359,16 @@
       ;*  (edit-control r "edit")
       ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
     ==
-    ;*  ?~  bod  ~
-        :_  ~
-        ;div(id "k-src", hidden "", data-mark "{(trip p.u.bod)}"): {?:(?=(@ q.u.bod) (trip q.u.bod) "")}
-    ;div(id "k-body", class "k-body")
-      ;+  nowt
-    ==
+    ;*  ?~  bod
+          :_  ~
+          ;div.k-body
+            ;+  nowt
+          ==
+        (bloc-manx u.bod)
   ==
 ::
 ++  public-page
-  |=  [r=row bod=page]
+  |=  [r=row bod=bloc]
   ^-  manx
   ;html
     ;head
@@ -315,14 +387,17 @@
         ;article.k-read
           ;a(href "/keep/index", class "k-back"): ←
           ;h1.k-art-title: {(titled hed.r)}
+          ;*  ?.  ?=(%quote -.bod)  ~
+              :_  ~
+              ;div.k-reply
+                ;span.k-reply-mark: ↩ in response to
+                ;span: {(titled `hed.bod)}
+              ==
           ;div.k-meta
             ;span: {(pp (author r))}
             ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
           ==
-          ;div(id "k-src", hidden "", data-mark "{(trip p.bod)}"): {?:(?=(@ q.bod) (trip q.bod) "")}
-          ;div(id "k-body", class "k-body")
-            ;+  nowt
-          ==
+          ;*  (bloc-manx bod)
         ==
       ==
     ==
@@ -348,6 +423,7 @@
             ;*  %+  turn  rows
                 |=  r=row
                 ;div.k-row
+                  ;*  (reply-tag r)
                   ;div.k-row-in
                     ;a(href "{?~(site.r "" (trip u.site.r))}", class "k-title"): {(titled hed.r)}
                     ;div.k-date: {?~(hed.r "" (day wen.u.hed.r))}
@@ -360,11 +436,18 @@
   ==
 ::
 ++  write-page
-  |=  pre=(unit [id=tape src=tape to=tape])
+  |=  [pre=(unit [id=tape src=tape to=tape]) re=(unit [e=entry:keep hed=head:keep])]
   ^-  manx
   =/  aud=tape  ?~(pre "everyone" to.u.pre)
   %+  shell  %write
   ;div.k-read
+    ;*  ?~  re  ~
+        :_  ~
+        ;div.k-reply
+          ;span.k-reply-mark: ↩ responding to
+          ;a(href "{(read-url e.u.re)}"): {(titled `hed.u.re)}
+          ;span.k-reply-who: {(pp who.hed.u.re)}
+        ==
     ;div.k-ed-meta
       ;div.k-to
         ;span.lbl: to
@@ -380,6 +463,10 @@
       ==
     ==
     ;input(type "hidden", id "k-audience", value "{aud}");
+    ;*  ?~  re  ~
+        :~  ;input(type "hidden", id "k-re-who", value "{(pp ship.e.u.re)}");
+            ;input(type "hidden", id "k-re-id", value "{(id-of e.u.re)}");
+        ==
     ;*  ?~  pre  ~
         :~  ;input(type "hidden", id "k-edit-id", value "{id.u.pre}");
             ;div(id "k-ed-src", hidden ""): {src.u.pre}

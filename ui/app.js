@@ -112,11 +112,22 @@
     target.innerHTML = (m === 'md') ? md(src) : '<pre>' + esc(src) + '</pre>';
   }
 
+  // a response nests sources: one .k-src/.k-body pair per prose layer of
+  // the quote chain. #k-src is the pre-response shape, kept for pages eyre
+  // cached before this file changed.
+  function paintAll() {
+    var srcs = document.querySelectorAll('.k-src, #k-src');
+    Array.prototype.slice.call(srcs).forEach(function (src) {
+      var target = src.nextElementSibling;
+      if (!target || !target.classList.contains('k-body')) return;
+      paint(target, src.textContent, src.dataset.mark);
+    });
+    return srcs.length > 0;
+  }
+
   function reader() {
-    var target = document.getElementById('k-body');
-    if (!target) return;
-    var src = document.getElementById('k-src');
-    if (src) { paint(target, src.textContent, src.dataset.mark); return; }
+    if (!document.querySelector('.k-body')) return;
+    if (paintAll()) return;
 
     var tries = 0;
     var tick = function () {
@@ -125,9 +136,16 @@
         .then(function (r) { return r.text(); })
         .then(function (html) {
           var doc = new DOMParser().parseFromString(html, 'text/html');
-          var got = doc.getElementById('k-src');
-          if (!got) { setTimeout(tick, 900); return; }
-          paint(target, got.textContent, got.dataset.mark);
+          if (!doc.querySelector('.k-src, #k-src')) { setTimeout(tick, 900); return; }
+          // the landed body brings structure (quote cards, warnings) the
+          // pending page lacked, so swap the whole article, not one div
+          var art = doc.querySelector('article.k-read');
+          var mine = document.querySelector('article.k-read');
+          if (art && mine) {
+            mine.parentNode.replaceChild(art, mine);
+            deletes();
+          }
+          paintAll();
         })
         .catch(function () { setTimeout(tick, 1800); });
     };
@@ -651,6 +669,12 @@
           to: audience.value
         };
         if (editId) fields.id = editId.value;
+        var reWho = document.getElementById('k-re-who');
+        var reId = document.getElementById('k-re-id');
+        if (reWho && reId) {
+          fields['re-who'] = reWho.value;
+          fields['re-id'] = reId.value;
+        }
         fetch('/keep/write', {
           method: 'POST',
           credentials: 'same-origin',

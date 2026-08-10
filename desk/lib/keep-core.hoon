@@ -51,7 +51,8 @@
   ^-  (set @t)
   %-  sy
   :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
-      '/keep/ship'   '/keep/style.css'  '/keep/app.js'
+      '/keep/ship'   '/keep/edit'   '/keep/respond'
+      '/keep/style.css'  '/keep/app.js'
   ==
 ::
 ++  slugify

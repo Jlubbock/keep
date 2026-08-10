@@ -276,38 +276,28 @@
     ::
     ::  ---- publishing --------------------------------------------------------
         %post
-      =/  hash=@uvH      (sham page.act)
-      =/  lyfe=@ud       our-life:hc
-      =/  =id
-        (sain:keep our.bowl lyfe now.bowl terms.act title.act hash)
-      =/  hed=head:keep
-        :*  now.bowl  our.bowl  lyfe  terms.act  title.act  hash
-            (sign-id:hc lyfe id)
-        ==
-      =/  =item:keep     [hed page.act]
-      =/  spur=path      (item-spur:hc id)
-      =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
-      =^  cards  lists   (fan-out:hc entry ~(tap in to.act))
-      =/  grows=(list card)
-        :~  [%pass /grow %grow (welp spur /head) noun+hed]
-            [%pass /grow %grow (welp spur /body) noun+page.act]
-        ==
-      =/  new-posts  (~(put by posts) id item)
-      =/  url=@t
-        ?.  (~(has in to.act) %public)  ''
-        (site-path:hc title.act)
-      ::  id:keep, not id: `=/ =id` above shadows the bare mold here
-      =/  new-sites=(map @t id:keep)
-        ?:(=('' url) sites (~(put by sites) url id))
-      =/  web=(list card)
-        ?:  =('' url)  ~
-        =/  art=card
-          %+  cache:hc  url
-          %-  manx-response:gen:srv
-          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act)
-        ~[art (index-card:hc new-sites new-posts)]
-      :_  this(posts new-posts, sites new-sites)
-      :(weld grows cards web (give:hc [%posted id entry]))
+      =/  c  (compose:hc page.act title.act terms.act to.act)
+      :_  this(posts posts.c, sites sites.c, lists lists.c)
+      cards.c
+    ::
+        %respond
+      ?~  hed=(head-of:hc re.act)  ~|(%respond-needs-the-article-first !!)
+      ?~  bod=(body-of:hc re.act)  ~|(%respond-needs-the-article-first !!)
+      ?:  ?&  (~(has in to.act) %public)
+              !=(our.bowl ship.re.act)
+              !(from-public:hc re.act)
+          ==
+        ~|(%respond-would-expose-gated-address !!)
+      ?:  =(`%forged (~(get by checked) re.act))
+        ~|(%respond-would-embed-forgery !!)
+      ?:  ?&  !=(our.bowl ship.re.act)
+              !=(`%good (~(get by checked) re.act))
+          ==
+        ~|(%respond-would-embed-unverified !!)
+      =/  pag=page  [%quote [u.hed u.bod] page.act]
+      =/  c  (compose:hc pag title.act terms.act to.act)
+      :_  this(posts posts.c, sites sites.c, lists lists.c)
+      cards.c
     ::
         %keep
       ?:  =(our.bowl ship.entry.act)  `this
@@ -865,6 +855,99 @@
   ?~  pas=(pass-of who.hed lyfe.hed)  %cold
   ?:((safe:as:(com:nu:crub:crypto u.pas) sig.hed id) %good %forged)
 ::
+::  ---- responses -------------------------------------------------------------
+::
+::  ;; is a hard cast wrapped in +mule: q of a page is a bare noun, and a
+::  malformed quote must render as an opaque body, not crash the render
+++  quote-of
+  |=  pag=page
+  ^-  (unit quote:keep)
+  ?.  =(%quote p.pag)  ~
+  =/  res  (mule |.(;;(quote:keep q.pag)))
+  ?:(?=(%| -.res) ~ `p.res)
+::
+::  an embedded item has no address to check against: its id IS (sain head),
+::  so only the hash and the signature can convict it
+++  judge-item
+  |=  it=item:keep
+  ^-  verdict:keep
+  =/  =id:keep
+    %-  sain:keep
+    :*  who.head.it  lyfe.head.it  wen.head.it
+        terms.head.it  title.head.it  hash.head.it
+    ==
+  (sound head.it page.it id)
+::
+::  eight layers deep is a conversation; a thousand is a grief noun
+++  as-bloc
+  |=  pag=page
+  ^-  bloc:ui
+  =/  deep=@ud  8
+  |-  ^-  bloc:ui
+  ?:  =(0 deep)  [%body pag]
+  ?~  qu=(quote-of pag)  [%body pag]
+  :*  %quote
+      head.orig.u.qu
+      (judge-item orig.u.qu)
+      $(pag page.orig.u.qu, deep (dec deep))
+      $(pag inner.u.qu, deep (dec deep))
+  ==
+::
+++  re-label
+  |=  pag=page
+  ^-  (unit @t)
+  ?~  qu=(quote-of pag)  ~
+  ?^  title.head.orig.u.qu  `u.title.head.orig.u.qu
+  `(scot %p who.head.orig.u.qu)
+::
+++  re-of
+  |=  e=entry
+  ^-  (unit @t)
+  ?~  bod=(body-of e)  ~
+  (re-label u.bod)
+::
+::  ---- publishing ------------------------------------------------------------
+::
+++  compose
+  |=  [pag=page title=(unit @t) terms=@t to=(set lyst)]
+  ^-  $:  cards=(list card)
+          lists=(map lyst roster)
+          posts=(map id item:keep)
+          sites=(map @t id:keep)
+      ==
+  =/  hash=@uvH  (sham pag)
+  =/  lyfe=@ud   our-life
+  =/  =id:keep   (sain:keep our.bowl lyfe now.bowl terms title hash)
+  =/  hed=head:keep
+    [now.bowl our.bowl lyfe terms title hash (sign-id lyfe id)]
+  =/  spur=path  (item-spur id)
+  =/  =entry     [our.bowl (welp (base first) spur)]
+  =/  fan        (fan-out entry ~(tap in to))
+  =/  grows=(list card)
+    :~  [%pass /grow %grow (welp spur /head) noun+hed]
+        [%pass /grow %grow (welp spur /body) noun+pag]
+    ==
+  =/  new-posts  (~(put by posts) id [hed pag])
+  =/  url=@t
+    ?.  (~(has in to) %public)  ''
+    (site-path title)
+  =/  new-sites=(map @t id:keep)
+    ?:(=('' url) sites (~(put by sites) url id))
+  =/  web=(list card)
+    ?:  =('' url)  ~
+    =/  art=card
+      %+  cache  url
+      %-  manx-response:gen:srv
+      %+  public-page:vw-bare
+        [our.bowl entry `hed %.y %.n `url ~ (re-label pag) ~]
+      (as-bloc pag)
+    ~[art (index-card new-sites new-posts)]
+  :*  :(weld grows -.fan web (give [%posted id entry]))
+      +.fan
+      new-posts
+      new-sites
+  ==
+::
 ::  ---- hosting ---------------------------------------------------------------
 ::
 ++  mirror
@@ -917,7 +1000,8 @@
     ?~  ls  ~
     ?~  got=(~(get by ps) q.i.ls)  $(ls t.ls)
     =/  e=entry  [our.bowl (welp (base first) (item-spur q.i.ls))]
-    [[our.bowl e `head.u.got %.y %.n `p.i.ls ~ ~] $(ls t.ls)]
+    :_  $(ls t.ls)
+    [our.bowl e `head.u.got %.y %.n `p.i.ls ~ (re-label page.u.got) ~]
   (by-date rs)
 ::
 ++  index-card
@@ -1016,7 +1100,9 @@
 ++  row-of
   |=  [via=ship e=entry]
   ^-  row:ui
-  [via e (head-of e) (kept e) (from-public e) (site-of e) (~(get by checked) e) (on-of e)]
+  :*  via  e  (head-of e)  (kept e)  (from-public e)  (site-of e)
+      (~(get by checked) e)  (re-of e)  (on-of e)
+  ==
 ::
 ++  feed-rows
   ^-  (list row:ui)
@@ -1048,7 +1134,10 @@
     |-  ^-  (list row:ui)
     ?~  ps  ~
     =/  e=entry  [our.bowl (welp (base first) (item-spur p.i.ps))]
-    [[our.bowl e `head.q.i.ps %.y %.n (site-of e) ~ (on-of e)] $(ps t.ps)]
+    :_  $(ps t.ps)
+    :*  our.bowl  e  `head.q.i.ps  %.y  %.n  (site-of e)
+        ~  (re-label page.q.i.ps)  (on-of e)
+    ==
   =/  theirs=(list row:ui)
     =/  es=(list entry)  ~(tap in kept-entries)
     |-  ^-  (list row:ui)
@@ -1102,15 +1191,18 @@
     (paint rid (js-response:gen:srv (as-octs:mimes:html app-js)))
   ::
       [%keep ~]        (render rid (feed-page:vw feed-rows))
-      [%keep %write ~]  (render rid (write-page:vw ~))
+      [%keep %write ~]  (render rid (write-page:vw ~ ~))
   ::
   ::  id first, ship last, like /keep/read: eyre makes its ext from the
   ::  final dot of the LAST segment, and a @uv id is full of dots
       [%keep %edit @ @ ~]
     ?~  i=(slaw %uv i.t.t.seg)  (paint rid not-found:gen:srv)
     ?~  got=(~(get by posts) u.i)  (paint rid not-found:gen:srv)
-    ?.  =(%md p.page.u.got)  (paint rid not-found:gen:srv)
-    =/  bod=tape  ?:(?=(@ q.page.u.got) (trip q.page.u.got) "")
+    ::  a response edits its prose; what it quotes rides along untouched
+    =/  qu=(unit quote:keep)  (quote-of page.u.got)
+    =/  inner=page  ?~(qu page.u.got inner.u.qu)
+    ?.  =(%md p.inner)  (paint rid not-found:gen:srv)
+    =/  bod=tape  ?:(?=(@ q.inner) (trip q.inner) "")
     =/  src=tape
       ?~  title.head.u.got  bod
       "# {(trip u.title.head.u.got)}\0a\0a{bod}"
@@ -1120,7 +1212,19 @@
       ?:  (~(has in on) %public)  "everyone"
       =/  to=(list lyst)  ~(tap in on)
       ?~(to "everyone" (trip i.to))
-    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud]))
+    %+  render  rid
+    %+  write-page:vw  `[(trip (scot %uv u.i)) src aud]
+    ?~  qu  ~
+    `[(orig-entry:vw head.orig.u.qu) head.orig.u.qu]
+  ::
+      [%keep %respond @ @ ~]
+    ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
+    =/  e=entry  [u.who (welp (base first) /item/[i.t.t.seg])]
+    ::  the read page is what fetches a body; respond needs it hosted first
+    =/  back  (paint rid (bounce (crip (read-url:vw e))))
+    ?~  hed=(head-of e)  back
+    ?~  bod=(body-of e)  back
+    (render rid (write-page:vw ~ `[e u.hed]))
   ::
       [%keep %lists ~]  (render rid (lists-page:vw ~))
       [%keep %lists @ ~]
@@ -1138,7 +1242,7 @@
       ?^  bod  ~
       ?:  =(our.bowl u.who)  ~
       ~[(fetch-body e)]
-    (render rid (read-page:vw (row-of u.who e) bod))
+    (render rid (read-page:vw (row-of u.who e) ?~(bod ~ `(as-bloc u.bod))))
   ==
 ::
 ++  paint
@@ -1210,10 +1314,14 @@
     =/  aud=(unit lyst)
       ?:(=('everyone' to) `%public (slaw %tas to))
     ?~  aud  ~
+    =/  re=(unit entry)
+      ?~  who=(slaw %p (arg q 're-who'))  ~
+      ?:  =('' (arg q 're-id'))  ~
+      `[u.who (welp (base first) /item/[(arg q 're-id')])]
     %-  self
-    :^  %post  [%md bod]
-      ?:(=('' tit) ~ `tit)
-    ['' (sy ~[u.aud])]
+    ?~  re
+      [%post [%md bod] ?:(=('' tit) ~ `tit) '' (sy ~[u.aud])]
+    [%respond u.re [%md bod] ?:(=('' tit) ~ `tit) '' (sy ~[u.aud])]
   ::
   ?:  =('edit' what)
     ?~  i=(slaw %uv (arg q 'id'))  ~
@@ -1225,11 +1333,15 @@
     =/  aud=(unit lyst)
       ?:(=('everyone' to) `%public (slaw %tas to))
     ?~  aud  ~
+    ::  a response keeps quoting what it quoted: re-wrap the new prose
+    =/  pag=page
+      ?~  qu=(quote-of page.u.old)  [%md bod]
+      [%quote orig.u.qu %md bod]
     ::  two pokes, not one branch: %post reads the freed slug and the
     ::  pruned list logs only after %delete's event has committed
     %+  weld  (self [%delete u.i])
     %-  self
-    :^  %post  [%md bod]
+    :^  %post  pag
       ?:(=('' tit) ~ `tit)
     [terms.head.u.old (sy ~[u.aud])]
   ::

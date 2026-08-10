@@ -23,6 +23,11 @@
 ::
 +$  item   [=head =page]             ::  page is [mark noun]; prose is md+'...'
 ::
+::  a response hosts what it answers: q of a %quote page is this cell, so
+::  the responder's hash covers the original's signed bytes, and orig's own
+::  page may be another %quote — the chain bottoms out at prose
++$  quote  [orig=item inner=page]
+::
 ::  %cold is not a weaker %good: it is "we could not ask". an author picks
 ::  it for us by claiming a life jael holds no key for, so it carries no
 ::  more authority than an unsigned page.
@@ -32,6 +37,7 @@
 ::
 +$  action
   $%  [%post =page title=(unit @t) terms=@t to=(set lyst)]
+      [%respond re=entry =page title=(unit @t) terms=@t to=(set lyst)]
       [%keep =entry to=(set lyst)]
       [%delete =id]
       [%open =entry]

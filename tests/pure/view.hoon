@@ -12,7 +12,7 @@
 ++  row-of
   |=  [via=ship e=entry:keep h=(unit head:keep)]
   ^-  row:ui
-  [via e h %.n %.n ~ ~ ~]
+  [via e h %.n %.n ~ ~ ~ ~]
 ::
 ++  test-last-of-empty
   ^-  tang
@@ -40,4 +40,13 @@
 ++  test-day
   ^-  tang
   (expect-eq !>("~2026.1.1") !>((day:vw ~2026.1.1)))
+::
+::  a response links its original without storing a pointer: the address
+::  falls out of the embedded head alone
+++  test-orig-entry-derives-from-the-head
+  ^-  tang
+  =/  =id:keep
+    (sain:keep ~wes 1 ~2026.1.1 'cc0' `'a title' (sham [%md 'the body']))
+  %+  expect-eq  !>(`entry:keep`[~wes /item/[(scot %uv id)]])
+  !>((orig-entry:vw hed))
 --

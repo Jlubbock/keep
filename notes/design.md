@@ -107,3 +107,36 @@ headline on every index revision.
 `%keep` hosts rather than points: it fetches, verifies, and re-grows the head
 and body byte-identical under our own `/item/[id]`. That is what survives the
 author going offline, since relays forward packets but do not answer from cache.
+
+## Responses
+
+A response is a post whose body is `[%quote orig=item inner=page]` — the whole
+signed original, head and body, hosted inside the response. Not a pointer, for
+the same reason `%keep` is not a pointer: what you answered must survive the
+original author going offline, and must survive them editing or deleting it.
+Same trade as reposts: the author cannot unpublish what someone chose to
+answer.
+
+What the nesting buys:
+
+- one signature covers the conversation. `hash` commits to the whole `page`
+  noun, so the responder's signature pins WHICH article they answered and the
+  exact bytes of it. Nobody can splice a different original under a response.
+- the embedded head still carries the original author's signature, so the
+  quoted layer verifies on its own. A responder who fabricates the quotation
+  gets the same `%forged` warning a forged article gets — per layer, at render.
+- recursion is free: `orig.page` may itself be a `%quote`, so a response to a
+  response nests, each layer signed by its own author. The render walks it
+  (capped, since an adversarial noun can nest without limit).
+- the link back is derivable, not stored: an embedded head reconstructs
+  `id = (sham +sain)`, which addresses the original at `/item/[id]` on its
+  author's ship.
+
+`%respond` gates like `%keep` gates: nothing `%forged` or `%cold` may be
+embedded, and an article that arrived over a gated address may not be quoted
+into a public post, because the quotation republishes the content itself.
+
+The head is untouched. A `re` field in the head would have re-keyed `+sain`
+and invalidated every existing signature; instead response-ness lives in the
+body, which means a feed row can only say "↩ re:" once the body has been
+fetched. Heads stay cheap, per the eager-heads/lazy-bodies rule.

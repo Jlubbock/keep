@@ -14,7 +14,7 @@
 ++  row-at
   |=  wen=@da
   ^-  row:ui
-  [~zod [~zod /item/0v5] `(head-at wen) %.n %.n ~ ~ ~]
+  [~zod [~zod /item/0v5] `(head-at wen) %.n %.n ~ ~ ~ ~]
 ::
 ::  ---- addresses -------------------------------------------------------------
 ::

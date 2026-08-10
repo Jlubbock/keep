@@ -178,6 +178,61 @@ form { margin: 0; }
 .k-meta .k-del:hover { color: #8a2f1f; }
 .k-meta .k-edit { color: #b3ac9f; }
 
+/* ---- responses -------------------------------------------------------- */
+
+/* under the title, above the byline: the relationship is part of the claim */
+.k-reply {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  margin: 0 0 16px; display: flex; gap: 10px; align-items: baseline;
+  flex-wrap: wrap;
+}
+.k-reply a:hover { color: #171614; text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.k-reply-mark { color: #b3ac9f; white-space: nowrap; }
+.k-reply-who { color: #b3ac9f; }
+
+/* a row's response marker, in the same voice as the ↻ repost marker */
+.k-reply-tag {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: #b3ac9f; margin-bottom: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.k-respond { white-space: nowrap; }
+
+/* the hosted original: the reader's blockquote idiom, one border per layer */
+.k-quote {
+  margin: 56px 0 0; padding-left: 22px;
+  border-left: 1px solid #e0dace;
+}
+.k-quote .k-quote { margin-top: 36px; }
+.k-quote-line {
+  display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.k-quote-line .k-reply-mark { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+.k-quote-title {
+  font-size: 20px; line-height: 1.35; font-weight: 500;
+  letter-spacing: -0.005em; min-width: 0; overflow-wrap: break-word;
+}
+.k-quote-title:hover {
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.k-quote-who {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  white-space: nowrap;
+}
+.k-quote-who:hover { color: #171614; }
+.k-quote-when {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #c3bcae;
+  white-space: nowrap;
+}
+/* quoted prose steps down a size; its headings must not outshout it */
+.k-quote .k-body { font-size: 17px; }
+.k-quote .k-body h1 { font-size: 24px; }
+.k-quote .k-body h2 { font-size: 20px; }
+
 .k-index-head {
   font-family: 'IBM Plex Mono', monospace; font-size: 17px; color: #171614;
   padding-bottom: 22px; border-bottom: 1px solid #e8e3d9; margin-bottom: 4px;
