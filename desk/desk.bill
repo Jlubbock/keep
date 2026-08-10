@@ -1,4 +1,5 @@
 ::  List the agents you want auto-started on install.
 :: 
 :~  %keep
+    %keep-talk
 ==

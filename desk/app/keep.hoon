@@ -1,4 +1,4 @@
-/-  keep
+/-  keep, kt=keep-talk
 /+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
@@ -252,6 +252,12 @@
     [%x %follows ~]  ``noun+!>(follows)
     [%x %pending ~]  ``noun+!>(pending)
   ::
+  ::  for %keep-talk: may `who` be handed this article's pointer at all
+      [%x %may-read @ @ ~]
+    =/  art=id  (slav %uv i.t.t.path)
+    =/  who=ship  (slav %p i.t.t.t.path)
+    ``noun+!>((may-read:hc art who))
+  ::
       [%x %item @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
     =/  res=(unit item:keep)
@@ -304,7 +310,7 @@
         =/  art=card
           %+  cache:hc  url
           %-  manx-response:gen:srv
-          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act)
+          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act ~)
         ~[art (index-card:hc new-sites new-posts)]
       :_  this(posts new-posts, sites new-sites)
       :(weld grows cards web (give:hc [%posted id entry]))
@@ -354,7 +360,11 @@
             [%pass /tomb %tomb [%ud first:hc] (welp spur /body)]
         ==
       :_  this(posts new-posts, sites new-sites)
-      :(weld cards buries web (give:hc [%deleted entry]))
+      %-  zing
+      :~  cards  buries  web
+          (talk-self:hc [%drop id.act])
+          (give:hc [%deleted entry])
+      ==
     ::
     ::  ---- reading -----------------------------------------------------------
         %open
@@ -435,6 +445,12 @@
       (give:hc [%pending (wait-of:hc pp)])
     ==
   ::
+  ::  ---- a hosted thread changed: re-cache its clearnet page -------------------
+      %keep-talk-refresh
+    ?>  =(our.bowl src.bowl)
+    =/  art  !<(id vase)
+    :_(this (recache:hc art))
+  ::
   ::  ---- the interface -------------------------------------------------------
       %handle-http-request
     =+  !<([rid=@ta ir=inbound-request:eyre] vase)
@@ -509,6 +525,12 @@
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
     %-  (slog leaf+"keep: refused" u.p.sign)
+    `this
+  ::
+      [%talk ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep: keep-talk refused" u.p.sign)
     `this
   ::
       [%poke @ ~]
@@ -887,6 +909,64 @@
   ?~  to=(~(get by keeping) e)  ~
   `(mirror hed bod ~(tap in u.to))
 ::
+::  ---- comments --------------------------------------------------------------
+::
+::  the gate %keep-talk asks before accepting a comment: could this ship have
+::  been handed the article's pointer
+++  may-read
+  |=  [art=id who=ship]
+  ^-  ?
+  ?:  =(our.bowl who)  %.y
+  =/  e=entry  [our.bowl (welp (base first) (item-spur art))]
+  =/  fanned-on=(set lyst)  (fanned e)
+  ?:  (~(has in fanned-on) %public)  %.y
+  =/  on=(list lyst)  ~(tap in fanned-on)
+  |-  ^-  ?
+  ?~  on  %.n
+  ?~  got=(~(get by lists) i.on)  $(on t.on)
+  ?:  (~(has in members.u.got) who)  %.y
+  $(on t.on)
+::
+::  %gu not %gx: %gu says whether keep-talk runs without crashing if it does not
+++  talk-live
+  ^-  ?
+  .^(? %gu /(scot %p our.bowl)/keep-talk/(scot %da now.bowl)/$)
+::
+++  talk-self
+  |=  act=action:kt
+  ^-  (list card)
+  ?.  talk-live  ~
+  ~[[%pass /talk %agent [our.bowl %keep-talk] %poke %keep-talk-action !>(act)]]
+::
+++  talk-view
+  |=  e=entry
+  ^-  (unit tv:ui)
+  ?.  talk-live  ~
+  ?~  i=(slaw %uv (last-of path.e))  ~
+  =/  us=@ta   (scot %p our.bowl)
+  =/  wen=@ta  (scot %da now.bowl)
+  ?:  =(our.bowl ship.e)
+    .^  (unit tv:ui)  %gx
+    /[us]/keep-talk/[wen]/thread/(scot %uv u.i)/noun
+    ==
+  .^  (unit tv:ui)  %gx
+  /[us]/keep-talk/[wen]/heard/(scot %p ship.e)/(scot %uv u.i)/noun
+  ==
+::
+++  recache
+  |=  art=id
+  ^-  (list card)
+  ?~  got=(~(get by posts) art)  ~
+  =/  e=entry  [our.bowl (welp (base first) (item-spur art))]
+  ?~  url=(site-of e)  ~
+  :_  ~
+  %+  cache  u.url
+  %-  manx-response:gen:srv
+  %^    public-page:vw-bare
+      [our.bowl e `head.u.got %.y %.n url ~ ~]
+    page.u.got
+  (talk-view e)
+::
 ::  ---- clearnet --------------------------------------------------------------
 ::
 ++  cache
@@ -1134,11 +1214,17 @@
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
     =/  e=entry  [u.who (welp (base first) /item/[i.t.t.seg])]
     =/  bod=(unit page)  (body-of e)
-    %+  weld
+    ;:  weld
       ?^  bod  ~
       ?:  =(our.bowl u.who)  ~
       ~[(fetch-body e)]
-    (render rid (read-page:vw (row-of u.who e) bod))
+    ::
+      ?:  =(our.bowl u.who)  ~
+      ?~  i=(slaw %uv i.t.t.seg)  ~
+      (talk-self [%read u.who u.i])
+    ::
+      (render rid (read-page:vw (row-of u.who e) bod (talk-view e) talk-live))
+    ==
   ==
 ::
 ++  paint
@@ -1241,6 +1327,19 @@
   ?:  =('delete' what)
     ?~  i=(slaw %uv (arg q 'id'))  ~
     (self [%delete u.i])
+  ::
+  ?:  =('comment' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    ?~  art=(slaw %uv (arg q 'id'))  ~
+    =/  bod=@t  (arg q 'body')
+    ?:  =('' bod)  ~
+    (talk-self [%say u.who u.art (slaw %uv (arg q 'parent')) bod])
+  ::
+  ?:  =('talk' what)
+    ?~  art=(slaw %uv (arg q 'id'))  ~
+    ?:  =('on' (arg q 'on'))   (talk-self [%open u.art])
+    ?:  =('off' (arg q 'on'))  (talk-self [%shut u.art])
+    ~
   ::
   ?:  =('check' what)
     ?~  who=(slaw %p (arg q 'who'))  ~

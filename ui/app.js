@@ -134,6 +134,70 @@
     setTimeout(tick, 600);
   }
 
+  // ---- comments -----------------------------------------------------------
+  //
+  // note bodies are markdown and render here, like the article body: the
+  // source ships in a hidden .k-note-src beside its .k-note-body target.
+  // a submitted comment lands asynchronously — locally in the next event,
+  // remotely when the host's next /talk revision keens back — so posting
+  // polls this page's own HTML and swaps the section in when it grows.
+
+  function talkPaint() {
+    Array.prototype.slice.call(document.querySelectorAll('.k-cmt-src')).forEach(function (s) {
+      var t = s.nextElementSibling;
+      if (t && t.classList.contains('k-cmt-body')) t.innerHTML = md(s.textContent);
+    });
+  }
+
+  function talkSwap(section) {
+    var mine = document.querySelector('section.k-talk');
+    if (!mine) return;
+    mine.parentNode.replaceChild(document.importNode(section, true), mine);
+    talk();
+  }
+
+  function talkWait(had, tries) {
+    if (tries > 40) return;
+    setTimeout(function () {
+      fetch(window.location.pathname, { credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var got = doc.querySelector('section.k-talk');
+          if (got && got.querySelectorAll('.k-cmt').length > had) { talkSwap(got); return; }
+          talkWait(had, tries + 1);
+        })
+        .catch(function () { talkWait(had, tries + 1); });
+    }, 900);
+  }
+
+  function talk() {
+    talkPaint();
+    Array.prototype.slice.call(document.querySelectorAll('form.k-say')).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var body = f.querySelector('[name=body]');
+        if (!body || !body.value.trim()) return;
+        var btn = f.querySelector('button');
+        btn.textContent = '…';
+        var fields = {};
+        Array.prototype.slice.call(f.elements).forEach(function (el) {
+          if (el.name) fields[el.name] = el.value;
+        });
+        var had = document.querySelectorAll('.k-cmt').length;
+        fetch('/keep', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: form(fields)
+        }).then(function (r) {
+          if (!r.ok) { btn.textContent = 'failed'; return; }
+          talkWait(had, 0);
+        }).catch(function () { btn.textContent = 'failed'; });
+      });
+    });
+  }
+
   // ---- editor -----------------------------------------------------------
 
   var TOKEN = /^(#{1,3} |> ?|[-*] )/;
@@ -749,6 +813,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     reader();
+    talk();
     editor();
     checker();
     lists();

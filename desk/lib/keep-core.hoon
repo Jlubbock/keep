@@ -6,14 +6,17 @@
 ::  gall numbers the first %grow at a path 1; revision 0 is unbound
 ++  first  1
 ::
-++  base
-  |=  rev=@ud
+++  base-of
+  |=  [dap=@tas rev=@ud]
   ^-  path
   ::  welp not weld: weld homogenizes on its first element
   ::  (scot %ud 1) not %1: %1 is the atom 1, an 0x01 byte in the path
-  ~[%g %x (scot %ud rev) %keep %$ (scot %ud 1)]
+  ~[%g %x (scot %ud rev) dap %$ (scot %ud 1)]
+::
+++  base  |=(rev=@ud (base-of %keep rev))
 ::
 ++  item-spur  |=(=id:keep ^-(path /item/[(scot %uv id)]))
+++  talk-spur  |=(art=id:keep ^-(path /talk/[(scot %uv art)]))
 ::
 ++  member-spur
   |=  [=lyst:keep salt=@uvH who=ship]

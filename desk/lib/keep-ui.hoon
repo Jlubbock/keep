@@ -1,6 +1,8 @@
-/-  keep
+/-  keep, kt=keep-talk
 ::
 |%
+::
++$  tv  [open=? notes=(list judged:kt)]   ::  a thread as the renderer sees it
 ::
 +$  row
   $:  via=ship
@@ -210,6 +212,139 @@
     ==
   ==
 ::
+::  ---- comments --------------------------------------------------------------
+::
+++  nid
+  |=  [art=id:keep n=note:kt]
+  ^-  id:keep
+  (sain-note:kt art who.n lyfe.n wen.n parent.n body.n)
+::
+++  note-ids
+  |=  [art=id:keep all=(list judged:kt)]
+  ^-  (set id:keep)
+  ?~  all  ~
+  (~(put in $(all t.all)) (nid art note.i.all))
+::
+::  a parent missing from the thread promotes its children to the top rather
+::  than losing them: the host prunes, the reader still reads
+++  roots-of
+  |=  [art=id:keep all=(list judged:kt)]
+  ^-  (list judged:kt)
+  =/  ids  (note-ids art all)
+  %+  skim  all
+  |=  j=judged:kt
+  ?~  parent.note.j  %.y
+  !(~(has in ids) u.parent.note.j)
+::
+++  kids-of
+  |=  [art=id:keep all=(list judged:kt) i=id:keep]
+  ^-  (list judged:kt)
+  %+  skim  all
+  |=  j=judged:kt
+  =(`i parent.note.j)
+::
+++  say-form
+  |=  [host=ship art=tape parent=tape back=tape]
+  ^-  manx
+  ;form(method "post", action "/keep", class "k-say")
+    ;+  (hidden "what" "comment")
+    ;+  (hidden "who" (pp host))
+    ;+  (hidden "id" art)
+    ;+  (hidden "parent" parent)
+    ;+  (hidden "back" back)
+    ;textarea(name "body", class "k-say-body", rows "5", placeholder "reply — markdown welcome")
+      ;+  nowt
+    ==
+    ;div.k-say-foot
+      ;button(type "submit", class "k-link k-say-send"): post
+    ==
+  ==
+::
+++  note-tree
+  |=  $:  host=ship
+          art=id:keep
+          art-str=tape
+          back=tape
+          live=?
+          say=?
+          all=(list judged:kt)
+          j=judged:kt
+          depth=@ud
+      ==
+  ^-  manx
+  =/  i=id:keep  (nid art note.j)
+  =/  kids=(list judged:kt)  (kids-of art all i)
+  ;div.k-cmt
+    ;div.k-cmt-head
+      ;+  ?.  live
+            ;span.k-cmt-who: {(pp who.note.j)}
+          ;a(href "/keep/ship/{(pp who.note.j)}", class "k-cmt-who"): {(pp who.note.j)}
+      ;span.k-cmt-when: {(day wen.note.j)}
+    ==
+    ;*  ?:  =(`%forged okay.j)
+          :_  ~
+          ;div.k-warn: ⚠ this does not match {(pp who.note.j)}'s signature — it may have been altered by whoever served it
+        ?.  =(`%cold okay.j)  ~
+        :_  ~
+        ;div.k-warn: ⚠ nothing here shows {(pp who.note.j)} wrote this — it claims a key life we cannot fetch
+    ;div(class "k-cmt-src", hidden ""): {(trip body.note.j)}
+    ;div.k-cmt-body
+      ;+  nowt
+    ==
+    ;*  ?.  say  ~
+        :_  ~
+        ;details.k-reply
+          ;summary: reply
+          ;+  (say-form host art-str (trip (scot %uv i)) back)
+        ==
+    ;*  ?~  kids  ~
+        :_  ~
+        ;div(class "k-cmt-kids {?:((lth depth 3) "indent" "")}")
+          ;*  %+  turn  kids
+              |=  k=judged:kt
+              (note-tree host art art-str back live say all k +(depth))
+        ==
+  ==
+::
+++  talk-block
+  |=  [r=row tlk=(unit tv) live=?]
+  ^-  (list manx)
+  ?~  tlk  ~
+  =/  art-str=tape  (id-of entry.r)
+  ?~  art=(slaw %uv (crip art-str))  ~
+  =/  back=tape  (read-url entry.r)
+  =/  say=?  &(live open.u.tlk)
+  =/  all=(list judged:kt)  notes.u.tlk
+  :_  ~
+  ;section.k-talk
+    ;div.k-talk-head: comments
+    ;*  %+  turn  (roots-of u.art all)
+        |=  j=judged:kt
+        (note-tree ship.entry.r u.art art-str back live say all j 0)
+    ;*  ?:  say  ~[(say-form ship.entry.r art-str "" back)]
+        ?:  open.u.tlk  ~
+        :_  ~
+        ;div.k-talk-closed: comments closed
+  ==
+::
+++  talk-toggle
+  |=  [r=row tlk=(unit tv) back=tape]
+  ^-  (list manx)
+  ?.  =(our.v ship.entry.r)  ~
+  =/  on=?  ?~(tlk %.n open.u.tlk)
+  =/  label=tape
+    ?:  on  "close comments"
+    ?~  tlk  "enable comments"
+    "reopen comments"
+  :_  ~
+  ;form(method "post", action "/keep", style "display:inline")
+    ;+  (hidden "what" "talk")
+    ;+  (hidden "id" (id-of entry.r))
+    ;+  (hidden "on" ?:(on "off" "on"))
+    ;+  (hidden "back" back)
+    ;button(type "submit", class "k-link k-talk-toggle"): {label}
+  ==
+::
 ::  ---- screens -------------------------------------------------------------
 ::
 ++  feed-page
@@ -263,7 +398,7 @@
   ==
 ::
 ++  read-page
-  |=  [r=row bod=(unit page)]
+  |=  [r=row bod=(unit page) tlk=(unit tv) talky=?]
   ^-  manx
   %+  shell  %read
   ;article.k-read
@@ -286,6 +421,7 @@
       ;*  (on-tag r "to ")
       ;*  (edit-control r "edit")
       ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
+      ;*  ?.(talky ~ (talk-toggle r tlk (read-url entry.r)))
     ==
     ;*  ?~  bod  ~
         :_  ~
@@ -293,10 +429,11 @@
     ;div(id "k-body", class "k-body")
       ;+  nowt
     ==
+    ;*  (talk-block r tlk %.y)
   ==
 ::
 ++  public-page
-  |=  [r=row bod=page]
+  |=  [r=row bod=page tlk=(unit tv)]
   ^-  manx
   ;html
     ;head
@@ -323,6 +460,7 @@
           ;div(id "k-body", class "k-body")
             ;+  nowt
           ==
+          ;*  (talk-block r tlk %.n)
         ==
       ==
     ==
