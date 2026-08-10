@@ -413,7 +413,9 @@
     ;div.k-meta
       ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
       ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
-      ;+  %^  repost-control  r  (read-url entry.r)
+      ;*  ?:  =(our.v ship.entry.r)  ~
+          :_  ~
+          %^  repost-control  r  (read-url entry.r)
           ?:(kept.r "↻ reposted" "↻ repost")
       ;*  ?~  site.r  ~
           :_  ~
