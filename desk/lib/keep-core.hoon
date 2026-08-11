@@ -17,6 +17,7 @@
 ::
 ++  item-spur  |=(=id:keep ^-(path /item/[(scot %uv id)]))
 ++  talk-spur  |=(art=id:keep ^-(path /talk/[(scot %uv art)]))
+++  talk-at-spur  |=(art=id:keep ^-(path /talk-at/[(scot %uv art)]))
 ::
 ++  member-spur
   |=  [=lyst:keep salt=@uvH who=ship]

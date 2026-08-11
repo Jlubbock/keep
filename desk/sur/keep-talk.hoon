@@ -19,7 +19,12 @@
   (sham [art who lyfe wen parent body])
 ::
 +$  talk    [open=? notes=(list note)]  ::  what is grown at /talk/[art]
-+$  thread  [rev=@ud =talk]             ::  host side; rev counts grows, for tombing
+::
+::  host side. /talk-at/[art] carries one tiny marker per change, forever —
+::  that is what readers tail. /talk/[art] carries the whole thread and only
+::  revisions [low..rev] are live; older ones are tombed as they are
+::  superseded, so a snipped note's bytes actually go away.
++$  thread  [rev=@ud low=@ud =talk]
 ::
 ::  absent is not %forged: unjudged and judged-bad are different answers
 +$  judged  [=note okay=(unit verdict:keep)]

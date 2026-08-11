@@ -5,11 +5,14 @@
 +$  card  card:agent:gall
 +$  id    id:keep
 ::
-+$  versioned-state  $%(state-0 state-1)
+::  frozen: what was actually written to disk. never change this.
++$  thread-2  [rev=@ud =talk:kt]
+::
++$  versioned-state  $%(state-0 state-1 state-2 state-3)
 ::
 +$  state-0
   $:  %0
-      ours=(map id thread:kt)
+      ours=(map id thread-2)
       tails=(map [host=ship art=id] @ud)
       heard=(map [host=ship art=id] talk:kt)
       checked=(map id verdict:keep)
@@ -17,8 +20,29 @@
 ::
 +$  state-1
   $:  %1
+      ours=(map id thread-2)
+      tails=(map [host=ship art=id] @ud)
+      heard=(map [host=ship art=id] talk:kt)
+      checked=(map id verdict:keep)
+      banned=(set ship)
+      tier=rank:title
+  ==
+::
++$  state-2
+  $:  %2
+      ours=(map id thread-2)
+      tails=(map [host=ship art=id] @ud)
+      heard=(map [host=ship art=id] talk:kt)
+      checked=(map id verdict:keep)
+      banned=(set ship)
+      tier=rank:title
+  ==
+::
++$  state-3
+  $:  %3
       ours=(map id thread:kt)             ::  threads we host
-      tails=(map [host=ship art=id] @ud)  ::  next revision keened
+      tails=(map [host=ship art=id] @ud)  ::  next /talk-at marker keened
+      pulls=(map [host=ship art=id] [want=@ud done=@ud])
       heard=(map [host=ship art=id] talk:kt)
       checked=(map id verdict:keep)       ::  by note id, judged once each
       banned=(set ship)                   ::  refused everywhere, on sight
@@ -30,7 +54,7 @@
 --
 ::
 %-  agent:dbug
-=|  state-1
+=|  state-3
 =*  state  -
 ^-  agent:gall
 =<
@@ -46,9 +70,30 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  ?-  -.old
-    %1  `this(state old)
-    %0  `this(state [%1 ours.old tails.old heard.old checked.old ~ %pawn])
+  ?-    -.old
+      %3  `this(state old)
+  ::
+      %2
+    =/  i  (induct:hc ours.old %.y)
+    =/  r  (rewalk:hc tails.old)
+    :_  %=  this
+          state  [%3 ours.i tails.r ~ heard.old checked.old banned.old tier.old]
+        ==
+    (weld cards.i cards.r)
+  ::
+      %1
+    =/  i  (induct:hc ours.old %.n)
+    =/  r  (rewalk:hc tails.old)
+    :_  %=  this
+          state  [%3 ours.i tails.r ~ heard.old checked.old banned.old tier.old]
+        ==
+    (weld cards.i cards.r)
+  ::
+      %0
+    =/  i  (induct:hc ours.old %.n)
+    =/  r  (rewalk:hc tails.old)
+    :_  this(state [%3 ours.i tails.r ~ heard.old checked.old ~ %pawn])
+    (weld cards.i cards.r)
   ==
 ::
 ++  on-peek
@@ -89,20 +134,20 @@
         %open
       ?^  got=(~(get by ours) art.act)
         ?:  open.talk.u.got  `this
-        =/  new=thread:kt  [+(rev.u.got) [%.y notes.talk.u.got]]
-        :_  this(ours (~(put by ours) art.act new))
-        ~[(grow:hc art.act talk.new) (refresh:hc art.act)]
+        =/  b  (bump:hc art.act u.got [%.y notes.talk.u.got])
+        :_  this(ours (~(put by ours) art.act new.b))
+        cards.b
       ?.  (~(has by our-posts:hc) art.act)  ~|(%talk-no-such-post !!)
-      =/  new=thread:kt  [1 [%.y ~]]
-      :_  this(ours (~(put by ours) art.act new))
-      ~[(grow:hc art.act talk.new) (refresh:hc art.act)]
+      =/  b  (bump:hc art.act [0 1 *talk:kt] [%.y ~])
+      :_  this(ours (~(put by ours) art.act new.b))
+      cards.b
     ::
         %shut
       ?~  got=(~(get by ours) art.act)  `this
       ?.  open.talk.u.got  `this
-      =/  new=thread:kt  [+(rev.u.got) [%.n notes.talk.u.got]]
-      :_  this(ours (~(put by ours) art.act new))
-      ~[(grow:hc art.act talk.new) (refresh:hc art.act)]
+      =/  b  (bump:hc art.act u.got [%.n notes.talk.u.got])
+      :_  this(ours (~(put by ours) art.act new.b))
+      cards.b
     ::
         %say
       ?:  =('' body.act)  ~|(%talk-empty !!)
@@ -120,12 +165,14 @@
       ?:  =(our.bowl host.act)  `this
       ?:  (~(has by tails) [host.act art.act])  `this
       :_  this(tails (~(put by tails) [host.act art.act] first:kc))
-      ~[(tail:hc host.act art.act first:kc)]
+      ~[(seen:hc host.act art.act first:kc)]
     ::
         %drop
       ?~  got=(~(get by ours) art.act)  `this
       :_  this(ours (~(del by ours) art.act))
-      (tombs:hc art.act rev.u.got)
+      %+  weld
+        (span:hc (talk-spur:kc art.act) low.u.got rev.u.got)
+      (span:hc (talk-at-spur:kc art.act) 1 rev.u.got)
     ::
         %snip
       ?~  got=(~(get by ours) art.act)  `this
@@ -133,9 +180,9 @@
         %+  skip  notes.talk.u.got
         |=(n=note:kt =(note.act (nid:hc art.act n)))
       ?:  =(rest notes.talk.u.got)  `this
-      =/  new=thread:kt  [+(rev.u.got) [open.talk.u.got rest]]
-      :_  this(ours (~(put by ours) art.act new))
-      ~[(grow:hc art.act talk.new) (refresh:hc art.act)]
+      =/  b  (bump:hc art.act u.got [open.talk.u.got rest])
+      :_  this(ours (~(put by ours) art.act new.b))
+      cards.b
     ::
         %ban
       ?:  =(our.bowl who.act)  ~|(%talk-ban-self !!)
@@ -182,32 +229,64 @@
 ++  on-arvo
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
+  ::  the debounce fired: pull the newest snapshot we have heard of, once
+  ?:  ?=([%behn %wake *] sign-arvo)
+    ?.  ?=([%pull @ @ ~] wire)  `this
+    =/  host=ship  (slav %p i.t.wire)
+    =/  art=id     (slav %uv i.t.t.wire)
+    ?~  got=(~(get by pulls) [host art])  `this
+    ?:  (lte want.u.got done.u.got)  `this
+    :_  this(pulls (~(put by pulls) [host art] [want.u.got want.u.got]))
+    ~[(pull:hc host art want.u.got)]
   ::  a keen returns %sage, not %tune; the value is q.q.sage
   ?.  ?=([%ames %sage *] sign-arvo)  (on-arvo:def wire sign-arvo)
   =/  =sage:mess:ames  sage.sign-arvo
   ?+    wire  `this
-      [%tail @ @ @ ~]
+  ::
+  ::  ---- a /talk-at marker: the thread moved -----------------------------------
+      [%seen @ @ @ ~]
     =/  at=@ud     (slav %ud i.t.wire)
     =/  host=ship  (slav %p i.t.t.wire)
     =/  art=id     (slav %uv i.t.t.t.wire)
-    ::  %sage collapses tombstone and failure into one empty q; step over
-    ::  it rather than stall forever on a revision that will never come
+    ::  markers are never tombed while the thread lives, so an empty sage
+    ::  here is the tomb of a dropped thread: stop following
     ?:  ?=(~ q.sage)
-      :_  this(tails (~(put by tails) [host art] +(at)))
-      ~[(tail:hc host art +(at))]
+      :-  ~
+      %=  this
+        tails  (~(del by tails) [host art])
+        pulls  (~(del by pulls) [host art])
+        heard  (~(del by heard) [host art])
+      ==
+    ::  a burst of markers coalesces into one pull at the newest revision:
+    ::  each marker raises want and arms a timer, the first wake pulls
+    =/  w=(unit [want=@ud done=@ud])  (~(get by pulls) [host art])
+    :_  %=  this
+          tails  (~(put by tails) [host art] +(at))
+          pulls  (~(put by pulls) [host art] [at ?~(w 0 done.u.w)])
+        ==
+    ~[(seen:hc host art +(at)) (hold:hc host art)]
+  ::
+  ::  ---- a /talk snapshot -------------------------------------------------------
+      [%snap @ @ @ ~]
+    =/  host=ship  (slav %p i.t.t.wire)
+    =/  art=id     (slav %uv i.t.t.t.wire)
+    ::  empty means the pull lost the grow/tomb race; the next marker re-pulls
+    ?:  ?=(~ q.sage)  `this
     ::  ;; is a hard cast; +mule installs a null scry gate, nothing inside may .^
     =/  res  (mule |.(;;(talk:kt q.q.sage)))
     ?:  ?=(%| -.res)
       %-  (slog leaf+"keep-talk: unreadable thread from {<host>}" ~)
-      :_  this(tails (~(put by tails) [host art] +(at)))
-      ~[(tail:hc host art +(at))]
+      `this
     =/  t=talk:kt  p.res
-    :_  %=  this
-          heard    (~(put by heard) [host art] t)
-          tails    (~(put by tails) [host art] +(at))
-          checked  (judge-new:hc art notes.t)
-        ==
-    ~[(tail:hc host art +(at))]
+    :-  ~
+    %=  this
+      heard    (~(put by heard) [host art] t)
+      checked  (judge-new:hc art notes.t)
+    ==
+  ::
+  ::  pre-%3 subscriptions keened /talk directly; they fire as the host
+  ::  grows, and the rewalked /talk-at tail already covers them
+      [%tail @ @ @ ~]  `this
   ==
 ::
 ++  on-leave  on-leave:def
@@ -254,15 +333,47 @@
       ==
     ~|(%talk-no-parent !!)
   ?.  =(%good (sound-note art n))  ~|(%talk-bad-signature !!)
-  =/  new=thread:kt  [+(rev.u.got) [%.y (snoc notes.talk.u.got n)]]
-  :+  ~[(grow art talk.new) (refresh art)]
-    (~(put by ours) art new)
+  =/  b  (bump art u.got [%.y (snoc notes.talk.u.got n)])
+  :+  cards.b
+    (~(put by ours) art new.b)
   (~(put by checked) i %good)
+::
+::  ---- growing and tombing ----------------------------------------------------
+::
+::  the index pattern, split in two: /talk-at is a permanent trail of tiny
+::  markers readers tail, /talk holds the prose and keeps only a two-revision
+::  live window. a keen sent to an already-tombed revision is never answered
+::  (C5.8 measures exactly that), so readers are never pointed below the window
+++  bump
+  |=  [art=id:keep t=thread:kt new-talk=talk:kt]
+  ^-  [new=thread:kt cards=(list card)]
+  =/  n=@ud  +(rev.t)
+  =/  new=thread:kt  [n ?:((lte n 1) 1 (dec n)) new-talk]
+  :-  new
+  ;:  weld
+    ~[(grow-at art n) (grow art new-talk) (refresh art)]
+    ?:  (lte n 2)  ~
+    (span (talk-spur:kc art) low.t (sub n 2))
+  ==
 ::
 ++  grow
   |=  [art=id:keep t=talk:kt]
   ^-  card
   [%pass /grow %grow (talk-spur:kc art) noun+t]
+::
+++  grow-at
+  |=  [art=id:keep rev=@ud]
+  ^-  card
+  [%pass /grow %grow (talk-at-spur:kc art) noun+rev]
+::
+++  span
+  |=  [spur=path from=@ud to=@ud]
+  ^-  (list card)
+  ?:  =(0 to)  ~
+  =/  n=@ud  from
+  |-  ^-  (list card)
+  ?:  (gth n to)  ~
+  [[%pass /tomb %tomb [%ud n] spur] $(n +(n))]
 ::
 ++  refresh
   |=  art=id:keep
@@ -270,20 +381,72 @@
   :^  %pass  /refresh  %agent
   [[our.bowl %keep] %poke %keep-talk-refresh !>(art)]
 ::
-++  tail
+::  ---- reading ----------------------------------------------------------------
+::
+++  seen
   |=  [host=ship art=id:keep at=@ud]
   ^-  card
-  :^  %pass  /tail/(scot %ud at)/(scot %p host)/(scot %uv art)  %keen
+  :^  %pass  /seen/(scot %ud at)/(scot %p host)/(scot %uv art)  %keen
+  [%.n host (welp (base-of:kc %keep-talk at) (talk-at-spur:kc art))]
+::
+++  pull
+  |=  [host=ship art=id:keep at=@ud]
+  ^-  card
+  :^  %pass  /snap/(scot %ud at)/(scot %p host)/(scot %uv art)  %keen
   [%.n host (welp (base-of:kc %keep-talk at) (talk-spur:kc art))]
 ::
-++  tombs
-  |=  [art=id:keep rev=@ud]
-  ^-  (list card)
-  =/  spur  (talk-spur:kc art)
-  =/  n=@ud  1
-  |-  ^-  (list card)
-  ?:  (gth n rev)  ~
-  [[%pass /tomb %tomb [%ud n] spur] $(n +(n))]
+++  hold
+  |=  [host=ship art=id:keep]
+  ^-  card
+  [%pass /pull/(scot %p host)/(scot %uv art) %arvo %b %wait (add now.bowl ~s1)]
+::
+::  ---- migration --------------------------------------------------------------
+::
+::  one-time, from on-load: pre-%3 threads hold every /talk revision live and
+::  no /talk-at trail. tomb down to the head (unless an earlier load already
+::  swept — re-tombing is not known to be safe), then lay the trail
+++  induct
+  |=  [m=(map id:keep thread-2) swept=?]
+  ^-  [cards=(list card) ours=(map id:keep thread:kt)]
+  =/  ls=(list [art=id:keep t=thread-2])  ~(tap by m)
+  =|  ours=(map id:keep thread:kt)
+  =|  cards=(list card)
+  |-  ^-  [cards=(list card) ours=(map id:keep thread:kt)]
+  ?~  ls  [cards ours]
+  =/  art  art.i.ls
+  =/  t    t.i.ls
+  %=  $
+    ls    t.ls
+    ours  (~(put by ours) art [rev.t rev.t talk.t])
+    cards
+      ;:  weld
+        =/  n=@ud  1
+        |-  ^-  (list card)
+        ?:  (gth n rev.t)  ~
+        [(grow-at art n) $(n +(n))]
+      ::
+        ?:  swept  ~
+        (span (talk-spur:kc art) 1 ?:((lte rev.t 1) 0 (dec rev.t)))
+      ::
+        cards
+      ==
+  ==
+::
+::  pre-%3 tails counted /talk revisions; under %3 they count /talk-at
+::  markers, so every follow restarts at marker 1 and walks the new trail
+++  rewalk
+  |=  m=(map [host=ship art=id:keep] @ud)
+  ^-  [cards=(list card) tails=(map [host=ship art=id:keep] @ud)]
+  =/  ls=(list [p=[host=ship art=id:keep] q=@ud])  ~(tap by m)
+  =|  out=(map [host=ship art=id:keep] @ud)
+  =|  cards=(list card)
+  |-  ^-  [cards=(list card) tails=(map [host=ship art=id:keep] @ud)]
+  ?~  ls  [cards out]
+  %=  $
+    ls     t.ls
+    out    (~(put by out) p.i.ls 1)
+    cards  [(seen host.p.i.ls art.p.i.ls 1) cards]
+  ==
 ::
 ::  ---- what %keep knows ------------------------------------------------------
 ::
