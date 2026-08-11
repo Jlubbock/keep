@@ -8,7 +8,7 @@
 ::  frozen: what was actually written to disk. never change this.
 +$  thread-2  [rev=@ud =talk:kt]
 ::
-+$  versioned-state  $%(state-0 state-1 state-2 state-3)
++$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4)
 ::
 +$  state-0
   $:  %0
@@ -40,6 +40,17 @@
 ::
 +$  state-3
   $:  %3
+      ours=(map id thread:kt)
+      tails=(map [host=ship art=id] @ud)
+      pulls=(map [host=ship art=id] [want=@ud done=@ud])
+      heard=(map [host=ship art=id] talk:kt)
+      checked=(map id verdict:keep)
+      banned=(set ship)
+      tier=rank:title
+  ==
+::
++$  state-4
+  $:  %4
       ours=(map id thread:kt)             ::  threads we host
       tails=(map [host=ship art=id] @ud)  ::  next /talk-at marker keened
       pulls=(map [host=ship art=id] [want=@ud done=@ud])
@@ -47,6 +58,7 @@
       checked=(map id verdict:keep)       ::  by note id, judged once each
       banned=(set ship)                   ::  refused everywhere, on sight
       tier=rank:title                     ::  smallest class admitted; %pawn is all
+      sent=(map [host=ship art=id] (list note:kt))  ::  said, not yet seen served
   ==
 ::
 ++  cap-body   65.536                     ::  bytes; every grow carries the thread
@@ -54,7 +66,7 @@
 --
 ::
 %-  agent:dbug
-=|  state-3
+=|  state-4
 =*  state  -
 ^-  agent:gall
 =<
@@ -71,13 +83,22 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ?-    -.old
-      %3  `this(state old)
+      %4  `this(state old)
+  ::
+      %3
+    :-  ~
+    %=  this
+      state
+        :*  %4  ours.old  tails.old  pulls.old  heard.old
+            checked.old  banned.old  tier.old  ~
+        ==
+    ==
   ::
       %2
     =/  i  (induct:hc ours.old %.y)
     =/  r  (rewalk:hc tails.old)
     :_  %=  this
-          state  [%3 ours.i tails.r ~ heard.old checked.old banned.old tier.old]
+          state  [%4 ours.i tails.r ~ heard.old checked.old banned.old tier.old ~]
         ==
     (weld cards.i cards.r)
   ::
@@ -85,14 +106,14 @@
     =/  i  (induct:hc ours.old %.n)
     =/  r  (rewalk:hc tails.old)
     :_  %=  this
-          state  [%3 ours.i tails.r ~ heard.old checked.old banned.old tier.old]
+          state  [%4 ours.i tails.r ~ heard.old checked.old banned.old tier.old ~]
         ==
     (weld cards.i cards.r)
   ::
       %0
     =/  i  (induct:hc ours.old %.n)
     =/  r  (rewalk:hc tails.old)
-    :_  this(state [%3 ours.i tails.r ~ heard.old checked.old ~ %pawn])
+    :_  this(state [%4 ours.i tails.r ~ heard.old checked.old ~ %pawn ~])
     (weld cards.i cards.r)
   ==
 ::
@@ -115,9 +136,14 @@
       [%x %heard @ @ ~]
     =/  host=ship  (slav %p i.t.t.path)
     =/  art=id     (slav %uv i.t.t.t.path)
+    ::  outbox notes render unjudged at the tail: said, not yet seen served
+    =/  pend=(list judged:kt)
+      %+  turn  (~(gut by sent) [host art] ~)
+      |=(n=note:kt `judged:kt`[n ~])
     =/  res=(unit [open=? notes=(list judged:kt)])
-      ?~  got=(~(get by heard) [host art])  ~
-      `[open.u.got (judge-all:hc art notes.u.got)]
+      ?~  got=(~(get by heard) [host art])
+        ?~(pend ~ `[%.y pend])
+      `[open.u.got (weld (judge-all:hc art notes.u.got) pend)]
     ``noun+!>(res)
   ==
 ::
@@ -155,8 +181,13 @@
       ?:  =(our.bowl host.act)
         =/  m  (hear:hc art.act n our.bowl)
         [cards.m this(ours ours.m, checked checked.m)]
-      :_  this
-      :~  :^  %pass  /say/(scot %p host.act)  %agent
+      ::  into the outbox before the wire: the page shows it now, the nack
+      ::  or the confirming snapshot takes it back out
+      =/  k  [host.act art.act]
+      :_  this(sent (~(put by sent) k (snoc (~(gut by sent) k ~) n)))
+      :~  :^  %pass
+            /say/(scot %p host.act)/(scot %uv art.act)/(scot %uv (nid:hc art.act n))
+          %agent
           :^  [host.act %keep-talk]  %poke  %keep-talk-gossip
           !>(`gossip:kt`[%say art.act n])
       ==
@@ -219,6 +250,19 @@
     %-  (slog leaf+"keep-talk: {<(slav %p i.t.wire)>} refused the comment" u.p.sign)
     `this
   ::
+      [%say @ @ @ ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    =/  host=ship  (slav %p i.t.wire)
+    =/  art=id     (slav %uv i.t.t.wire)
+    =/  i=id       (slav %uv i.t.t.t.wire)
+    %-  (slog leaf+"keep-talk: {<host>} refused the comment" u.p.sign)
+    =/  k  [host art]
+    =/  rest=(list note:kt)
+      %+  skip  (~(gut by sent) k ~)
+      |=(n=note:kt =(i (nid:hc art n)))
+    `this(sent ?~(rest (~(del by sent) k) (~(put by sent) k rest)))
+  ::
       [%refresh ~]
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
@@ -256,13 +300,22 @@
         tails  (~(del by tails) [host art])
         pulls  (~(del by pulls) [host art])
         heard  (~(del by heard) [host art])
+        sent   (~(del by sent) [host art])
       ==
-    ::  a burst of markers coalesces into one pull at the newest revision:
-    ::  each marker raises want and arms a timer, the first wake pulls
     =/  w=(unit [want=@ud done=@ud])  (~(get by pulls) [host art])
+    =/  done=@ud  ?~(w 0 done.u.w)
+    ::  a single-step marker on a warm follow is a live comment: pull now.
+    ::  a cold or multi-step gap is a catch-up burst, and each marker would
+    ::  pull a revision about to be superseded — debounce into one pull
+    ?:  &(!=(0 done) =(at +(done)))
+      :_  %=  this
+            tails  (~(put by tails) [host art] +(at))
+            pulls  (~(put by pulls) [host art] [at at])
+          ==
+      ~[(seen:hc host art +(at)) (pull:hc host art at)]
     :_  %=  this
           tails  (~(put by tails) [host art] +(at))
-          pulls  (~(put by pulls) [host art] [at ?~(w 0 done.u.w)])
+          pulls  (~(put by pulls) [host art] [at done])
         ==
     ~[(seen:hc host art +(at)) (hold:hc host art)]
   ::
@@ -278,10 +331,16 @@
       %-  (slog leaf+"keep-talk: unreadable thread from {<host>}" ~)
       `this
     =/  t=talk:kt  p.res
+    ::  the snapshot is the confirmation: outbox notes it carries come out
+    =/  k  [host art]
+    =/  rest=(list note:kt)
+      %+  skip  (~(gut by sent) k ~)
+      |=(n=note:kt (has-note:hc art notes.t (nid:hc art n)))
     :-  ~
     %=  this
-      heard    (~(put by heard) [host art] t)
+      heard    (~(put by heard) k t)
       checked  (judge-new:hc art notes.t)
+      sent     ?~(rest (~(del by sent) k) (~(put by sent) k rest))
     ==
   ::
   ::  pre-%3 subscriptions keened /talk directly; they fire as the host

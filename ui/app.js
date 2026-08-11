@@ -151,11 +151,18 @@
 
   function talkSwap(section) {
     var mine = document.querySelector('section.k-talk');
-    if (!mine) return;
-    mine.parentNode.replaceChild(document.importNode(section, true), mine);
+    if (mine) {
+      mine.parentNode.replaceChild(document.importNode(section, true), mine);
+    } else {
+      // first arrival: the section mounts where the server would have put it
+      var art = document.querySelector('article.k-read');
+      if (!art) return;
+      art.appendChild(document.importNode(section, true));
+    }
     talk();
   }
 
+  // an outbox echo lands in the very next render, so poll eagerly at first
   function talkWait(had, tries) {
     if (tries > 40) return;
     setTimeout(function () {
@@ -168,7 +175,38 @@
           talkWait(had, tries + 1);
         })
         .catch(function () { talkWait(had, tries + 1); });
-    }, 900);
+    }, tries < 2 ? 250 : tries < 5 ? 500 : 900);
+  }
+
+  // a remote thread arrives after the page does — markers walk, one pull
+  // lands — so the first visit re-asks a few times instead of demanding a
+  // reload. delays back off; any change swaps the section in place.
+  function talkFresh() {
+    if (window.location.pathname.indexOf('/keep/read/') !== 0) return;
+    var mine = document.querySelector('.k-nav a.mono');
+    var host = window.location.pathname.split('/').pop();
+    if (!mine || mine.textContent.trim() === host) return;
+    var delays = [700, 1200, 2400, 4800, 9000];
+    var i = 0;
+    var look = function () {
+      if (i >= delays.length) return;
+      setTimeout(function () {
+        i += 1;
+        fetch(window.location.pathname, { credentials: 'same-origin' })
+          .then(function (r) { return r.text(); })
+          .then(function (html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var got = doc.querySelector('section.k-talk');
+            var have = document.querySelector('section.k-talk');
+            var gn = got ? got.querySelectorAll('.k-cmt').length : -1;
+            var hn = have ? have.querySelectorAll('.k-cmt').length : -1;
+            if (got && gn !== hn) talkSwap(got);
+            look();
+          })
+          .catch(look);
+      }, delays[i]);
+    };
+    look();
   }
 
   function talk() {
@@ -825,6 +863,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     reader();
     talk();
+    talkFresh();
     editor();
     checker();
     lists();
