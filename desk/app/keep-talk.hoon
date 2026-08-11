@@ -1,5 +1,5 @@
-/-  keep, kt=keep-talk
-/+  default-agent, dbug, kc=keep-core
+/-  keep, kt=keep-talk, hark
+/+  default-agent, dbug, kc=keep-core, kh=keep-hark
 ::
 |%
 +$  card  card:agent:gall
@@ -268,6 +268,12 @@
     ?~  p.sign  `this
     %-  (slog leaf+"keep-talk: %keep refused a refresh" u.p.sign)
     `this
+  ::
+      [%hark ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep-talk: hark refused" u.p.sign)
+    `this
   ==
 ::
 ++  on-arvo
@@ -336,7 +342,11 @@
     =/  rest=(list note:kt)
       %+  skip  (~(gut by sent) k ~)
       |=(n=note:kt (has-note:hc art notes.t (nid:hc art n)))
-    :-  ~
+    ::  only notes beyond the last snapshot toast: the first pull is backlog
+    =/  toast=(list card)
+      ?~  was=(~(get by heard) k)  ~
+      (replies:hc art notes.u.was notes.t)
+    :-  toast
     %=  this
       heard    (~(put by heard) k t)
       checked  (judge-new:hc art notes.t)
@@ -392,8 +402,17 @@
       ==
     ~|(%talk-no-parent !!)
   ?.  =(%good (sound-note art n))  ~|(%talk-bad-signature !!)
+  =/  toast=(list card)
+    ?:  =(our.bowl from)  ~
+    =/  verb=@t
+      ?:  (mine art notes.talk.u.got parent.n)
+        ' replied to your comment on '
+      ' commented on '
+    %^  notify:kh  bowl  (talk-spur:kc art)
+    ^-  (list content:hark)
+    ~[[%ship from] verb [%emph (title-of art)]]
   =/  b  (bump art u.got [%.y (snoc notes.talk.u.got n)])
-  :+  cards.b
+  :+  (weld toast cards.b)
     (~(put by ours) art new.b)
   (~(put by checked) i %good)
 ::
@@ -521,6 +540,40 @@
   .^  ?  %gx
   /(scot %p our.bowl)/keep/(scot %da now.bowl)/may-read/(scot %uv art)/(scot %p who)/noun
   ==
+::
+::  ---- notifying -------------------------------------------------------------
+::
+++  mine
+  |=  [art=id:keep ns=(list note:kt) parent=(unit id:keep)]
+  ^-  ?
+  ?~  parent  %.n
+  |-  ^-  ?
+  ?~  ns  %.n
+  ?:  =(u.parent (nid art i.ns))  =(our.bowl who.i.ns)
+  $(ns t.ns)
+::
+++  title-of
+  |=  art=id:keep
+  ^-  @t
+  ?~  got=(~(get by our-posts) art)  'your post'
+  ?~  title.head.u.got  'your post'
+  u.title.head.u.got
+::
+++  replies
+  |=  [art=id:keep old=(list note:kt) new=(list note:kt)]
+  ^-  (list card)
+  =/  had=(set id:keep)
+    (~(gas in *(set id:keep)) (turn old |=(n=note:kt (nid art n))))
+  %-  zing
+  %+  turn  new
+  |=  n=note:kt
+  ^-  (list card)
+  ?:  (~(has in had) (nid art n))  ~
+  ?:  =(our.bowl who.n)  ~
+  ?.  (mine art new parent.n)  ~
+  %^  notify:kh  bowl  (talk-spur:kc art)
+  ^-  (list content:hark)
+  ~[[%ship who.n] ' replied to your comment']
 ::
 ::  ---- provenance ------------------------------------------------------------
 ::

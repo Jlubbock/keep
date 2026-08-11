@@ -1,5 +1,5 @@
-/-  keep, kt=keep-talk
-/+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core
+/-  keep, kt=keep-talk, hark
+/+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core, kh=keep-hark
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
 ::
@@ -533,6 +533,12 @@
     %-  (slog leaf+"keep: keep-talk refused" u.p.sign)
     `this
   ::
+      [%hark ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep: hark refused" u.p.sign)
+    `this
+  ::
       [%poke @ ~]
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
@@ -583,6 +589,19 @@
       ?.  =(`%good vote)  ~
       ?~  bod=(~(get by seen) e)  ~
       (finish:hc e hed u.bod)
+    ::  a fresh head on a foreign address claiming our authorship is a repost
+    =/  toast=(list card)
+      ?.  ?&  !(~(has by heads) e)
+              !=(our.bowl ship.e)
+              =(our.bowl who.hed)
+          ==
+        ~
+      %^  notify:kh  bowl  /repost/[(last-of:hc path.e)]
+      ^-  (list content:hark)
+      :~  [%ship ship.e]
+          ' reposted '
+          [%emph ?~(title.hed 'your post' u.title.hed)]
+      ==
     :_  %=  this
           heads    (~(put by heads) e hed)
           checked  ?~(late checked (~(put by checked) e u.late))
@@ -590,8 +609,11 @@
           posts    ?~(done posts posts.u.done)
           keeping  ?:(|((settled:hc vote) ?=(^ done)) (~(del by keeping) e) keeping)
         ==
-    %+  weld  (give:hc [%head e hed])
-    ?~(done ~ cards.u.done)
+    ;:  weld
+      toast
+      (give:hc [%head e hed])
+      ?~(done ~ cards.u.done)
+    ==
   ::
   ::  ---- a body --------------------------------------------------------------
       [%body @ *]
