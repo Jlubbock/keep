@@ -32,6 +32,11 @@
       [%say host=ship art=id:keep parent=(unit id:keep) body=@t]
       [%read host=ship art=id:keep]     ::  tail a remote thread
       [%drop art=id:keep]               ::  from %keep on %delete: tomb + forget
+    ::
+      [%snip art=id:keep note=id:keep]  ::  the host removes one note
+      [%ban who=ship]                   ::  refuse future comments; keeps existing
+      [%unban who=ship]
+      [%tier =rank:title]               ::  smallest ship class that may comment
   ==
 ::
 ::  ---- network: poke %keep-talk-gossip ---------------------------------------

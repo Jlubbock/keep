@@ -131,6 +131,7 @@
       ;a(href "/keep/ship/{(pp our.v)}", class "mono {(sel %mine)}"): {(pp our.v)}
       ;a(href "/keep/write", class "{(sel %write)}"): write
       ;a(href "/keep/lists", class "{(sel %lists)}"): lists
+      ;a(href "/keep/comments", class "{(sel %comments)}"): comments
     ==
     ;div.k-pals
       ;form(method "post", action "/keep", class "k-one k-find-form")
@@ -280,6 +281,27 @@
             ;span.k-cmt-who: {(pp who.note.j)}
           ;a(href "/keep/ship/{(pp who.note.j)}", class "k-cmt-who"): {(pp who.note.j)}
       ;span.k-cmt-when: {(day wen.note.j)}
+      ;*  ?.  &(live =(our.v host))  ~
+          :_  ~
+          ;form(method "post", action "/keep", class "k-snip-form", style "display:inline")
+            ;+  (hidden "what" "snip")
+            ;+  (hidden "id" art-str)
+            ;+  (hidden "note" (trip (scot %uv i)))
+            ;+  (hidden "back" back)
+            ;button(type "submit", class "k-link k-del"): ×
+          ==
+      ;*  ?.  ?&  live
+                  =(our.v host)
+                  !=(our.v who.note.j)
+              ==
+            ~
+          :_  ~
+          ;form(method "post", action "/keep", class "k-ban-form", style "display:inline")
+            ;+  (hidden "what" "ban")
+            ;+  (hidden "who" (pp who.note.j))
+            ;+  (hidden "back" back)
+            ;button(type "submit", class "k-link k-ban"): ban
+          ==
     ==
     ;*  ?:  =(`%forged okay.j)
           :_  ~
@@ -343,6 +365,67 @@
     ;+  (hidden "on" ?:(on "off" "on"))
     ;+  (hidden "back" back)
     ;button(type "submit", class "k-link k-talk-toggle"): {label}
+  ==
+::
+++  tier-name
+  |=  r=rank:title
+  ^-  tape
+  ?-  r
+    %pawn  "everyone"
+    %earl  "moons & up"
+    %duke  "planets & up"
+    %king  "stars & up"
+    %czar  "galaxies"
+  ==
+::
+++  tier-form
+  |=  [r=rank:title cur=rank:title]
+  ^-  manx
+  ;form(method "post", action "/keep", style "display:inline")
+    ;+  (hidden "what" "tier")
+    ;+  (hidden "rank" (trip r))
+    ;+  (hidden "back" "/keep/comments")
+    ;button(type "submit", class "k-link k-tier {?:(=(r cur) "on" "")}"): {(tier-name r)}
+  ==
+::
+++  comments-page
+  |=  rules=(unit [banned=(set ship) tier=rank:title])
+  ^-  manx
+  %+  shell  %comments
+  ;div.k-col
+    ;*  ?^  rules  ~
+        :_  ~
+        ;div(class "k-note", data-state "off"): %keep-talk is not running
+    ;*  ?~  rules  ~
+        :~  ;div.k-rules
+              ;div.k-rules-head: who may comment
+              ;div.k-tiers
+                ;*  %+  turn  `(list rank:title)`~[%pawn %earl %duke %king %czar]
+                    |=(r=rank:title (tier-form r tier.u.rules))
+              ==
+            ==
+            ;div.k-rules
+              ;div.k-rules-head: banned
+              ;div.k-members
+                ;*  %+  turn  ~(tap in banned.u.rules)
+                    |=  who=ship
+                    ;div.k-member
+                      ;span: {(pp who)}
+                      ;form(method "post", action "/keep", style "display:inline")
+                        ;+  (hidden "what" "unban")
+                        ;+  (hidden "who" (pp who))
+                        ;+  (hidden "back" "/keep/comments")
+                        ;button(type "submit", class "k-link k-x"): ×
+                      ==
+                    ==
+                ;form(method "post", action "/keep", class "k-one")
+                  ;+  (hidden "what" "ban")
+                  ;+  (hidden "back" "/keep/comments")
+                  ;input(type "text", name "who", class "k-add", placeholder "~sampel-palnet", autocomplete "off");
+                ==
+              ==
+            ==
+        ==
   ==
 ::
 ::  ---- screens -------------------------------------------------------------

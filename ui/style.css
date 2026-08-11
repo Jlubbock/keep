@@ -384,12 +384,37 @@ form { margin: 0; }
   border: 1px solid #e8e3d9; padding: 12px 14px;
 }
 .k-say-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
-.k-say-send {
+/* descendant selectors on purpose: button.k-link is type+class, and a bare
+   class loses to it — its color:inherit and border:none would win */
+.k-say-foot .k-say-send {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #171614;
   border-bottom: 1px solid #d8d2c6;
 }
-.k-say-send:hover { border-color: #171614; }
+.k-say-foot .k-say-send:hover { border-color: #171614; }
 .k-talk .k-warn { margin: 0 0 10px; }
+.k-cmt-head .k-del { color: #ede9e0; }
+.k-cmt:hover .k-del { color: #ddd7ca; }
+.k-cmt-head .k-del:hover { color: #8a2f1f; }
+.k-cmt-head .k-ban {
+  color: #ede9e0; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.k-cmt:hover .k-ban { color: #ddd7ca; }
+.k-cmt-head .k-ban:hover { color: #8a2f1f; }
+
+/* ---- comment rules (/keep/comments) ------------------------------------- */
+
+.k-rules { border-bottom: 1px solid #eeeae1; padding: 20px 0; }
+.k-rules-head {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: #b3ac9f;
+  padding-bottom: 12px;
+}
+.k-tiers {
+  display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+}
+.k-tiers .k-tier { color: #c3bcae; white-space: nowrap; }
+.k-tiers .k-tier:hover, .k-tiers .k-tier.on { color: #171614; }
 
 /* ---- narrow ----------------------------------------------------------- */
 

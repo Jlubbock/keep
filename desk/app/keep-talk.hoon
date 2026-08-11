@@ -5,14 +5,24 @@
 +$  card  card:agent:gall
 +$  id    id:keep
 ::
-+$  versioned-state  $%(state-0)
++$  versioned-state  $%(state-0 state-1)
 ::
 +$  state-0
   $:  %0
+      ours=(map id thread:kt)
+      tails=(map [host=ship art=id] @ud)
+      heard=(map [host=ship art=id] talk:kt)
+      checked=(map id verdict:keep)
+  ==
+::
++$  state-1
+  $:  %1
       ours=(map id thread:kt)             ::  threads we host
       tails=(map [host=ship art=id] @ud)  ::  next revision keened
       heard=(map [host=ship art=id] talk:kt)
       checked=(map id verdict:keep)       ::  by note id, judged once each
+      banned=(set ship)                   ::  refused everywhere, on sight
+      tier=rank:title                     ::  smallest class admitted; %pawn is all
   ==
 ::
 ++  cap-body   65.536                     ::  bytes; every grow carries the thread
@@ -20,7 +30,7 @@
 --
 ::
 %-  agent:dbug
-=|  state-0
+=|  state-1
 =*  state  -
 ^-  agent:gall
 =<
@@ -29,14 +39,16 @@
     def   ~(. (default-agent this %|) bowl)
     hc    ~(. +> bowl)
 ::
-++  on-init  `this
+::  %pawn, not the bunt: a bunted rank is %czar, which is "galaxies only"
+++  on-init  `this(tier %pawn)
 ++  on-save  !>(state)
 ++  on-load
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ?-  -.old
-    %0  `this(state old)
+    %1  `this(state old)
+    %0  `this(state [%1 ours.old tails.old heard.old checked.old ~ %pawn])
   ==
 ::
 ++  on-peek
@@ -45,6 +57,7 @@
   ?+    path  (on-peek:def path)
       [%x %ours ~]   ``noun+!>(ours)
       [%x %tails ~]  ``noun+!>(tails)
+      [%x %rules ~]  ``noun+!>([banned tier])
   ::
   ::  ours and heard answer in one shape, so the renderer has one code path
       [%x %thread @ ~]
@@ -113,6 +126,26 @@
       ?~  got=(~(get by ours) art.act)  `this
       :_  this(ours (~(del by ours) art.act))
       (tombs:hc art.act rev.u.got)
+    ::
+        %snip
+      ?~  got=(~(get by ours) art.act)  `this
+      =/  rest=(list note:kt)
+        %+  skip  notes.talk.u.got
+        |=(n=note:kt =(note.act (nid:hc art.act n)))
+      ?:  =(rest notes.talk.u.got)  `this
+      =/  new=thread:kt  [+(rev.u.got) [open.talk.u.got rest]]
+      :_  this(ours (~(put by ours) art.act new))
+      ~[(grow:hc art.act talk.new) (refresh:hc art.act)]
+    ::
+        %ban
+      ?:  =(our.bowl who.act)  ~|(%talk-ban-self !!)
+      `this(banned (~(put in banned) who.act))
+    ::
+        %unban
+      `this(banned (~(del in banned) who.act))
+    ::
+        %tier
+      `this(tier rank.act)
     ==
   ::
   ::  ---- network -------------------------------------------------------------
@@ -207,6 +240,9 @@
       ==
   ?~  got=(~(get by ours) art)  ~|(%talk-closed !!)
   ?.  open.talk.u.got  ~|(%talk-closed !!)
+  ::  the host is never banned or under-tiered on its own thread
+  ?:  &(!=(our.bowl from) (~(has in banned) from))  ~|(%talk-banned !!)
+  ?.  |(=(our.bowl from) (may-tier:kc tier from))  ~|(%talk-tier !!)
   ?.  (may-read art from)  ~|(%talk-not-allowed !!)
   ?:  =('' body.n)  ~|(%talk-empty !!)
   ?:  (gth (met 3 body.n) cap-body)  ~|(%talk-too-long !!)

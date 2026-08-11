@@ -938,6 +938,14 @@
   ?.  talk-live  ~
   ~[[%pass /talk %agent [our.bowl %keep-talk] %poke %keep-talk-action !>(act)]]
 ::
+++  talk-rules
+  ^-  (unit [banned=(set ship) tier=rank:title])
+  ?.  talk-live  ~
+  :-  ~
+  .^  [(set ship) rank:title]  %gx
+  /(scot %p our.bowl)/keep-talk/(scot %da now.bowl)/rules/noun
+  ==
+::
 ++  talk-view
   |=  e=entry
   ^-  (unit tv:ui)
@@ -1202,6 +1210,8 @@
       ?~(to "everyone" (trip i.to))
     (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud]))
   ::
+      [%keep %comments ~]  (render rid (comments-page:vw talk-rules))
+  ::
       [%keep %lists ~]  (render rid (lists-page:vw ~))
       [%keep %lists @ ~]
     (render rid (lists-page:vw (slaw %tas i.t.t.seg)))
@@ -1340,6 +1350,31 @@
     ?:  =('on' (arg q 'on'))   (talk-self [%open u.art])
     ?:  =('off' (arg q 'on'))  (talk-self [%shut u.art])
     ~
+  ::
+  ?:  =('snip' what)
+    ?~  art=(slaw %uv (arg q 'id'))  ~
+    ?~  n=(slaw %uv (arg q 'note'))  ~
+    (talk-self [%snip u.art u.n])
+  ::
+  ?:  =('ban' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (talk-self [%ban u.who])
+  ::
+  ?:  =('unban' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (talk-self [%unban u.who])
+  ::
+  ?:  =('tier' what)
+    =/  r=(unit rank:title)
+      ?+  (arg q 'rank')  ~
+        %pawn  `%pawn
+        %earl  `%earl
+        %duke  `%duke
+        %king  `%king
+        %czar  `%czar
+      ==
+    ?~  r  ~
+    (talk-self [%tier u.r])
   ::
   ?:  =('check' what)
     ?~  who=(slaw %p (arg q 'who'))  ~

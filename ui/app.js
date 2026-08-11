@@ -173,6 +173,17 @@
 
   function talk() {
     talkPaint();
+    Array.prototype.slice.call(document.querySelectorAll('form.k-snip-form')).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        if (!window.confirm('delete this comment?')) e.preventDefault();
+      });
+    });
+    Array.prototype.slice.call(document.querySelectorAll('form.k-ban-form')).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        var who = f.querySelector('[name=who]').value;
+        if (!window.confirm('ban ' + who + ' from commenting? their comments stay until deleted.')) e.preventDefault();
+      });
+    });
     Array.prototype.slice.call(document.querySelectorAll('form.k-say')).forEach(function (f) {
       f.addEventListener('submit', function (e) {
         e.preventDefault();

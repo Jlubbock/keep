@@ -3,7 +3,7 @@
 ::  every field has to move it; the tree has to survive a pruned parent.
 ::
 /-  keep, kt=keep-talk
-/+  *test, ui=keep-ui
+/+  *test, ui=keep-ui, kc=keep-core
 |%
 ++  vw   ~(. ui `view:ui`[~zod ~2026.1.1 ~ ~ ~ ~ ~ ~])
 ++  art  `id:keep`0v5
@@ -99,4 +99,39 @@
   =/  late   (note-at ~wes ~2020.1.1 ~ 'backdated')
   %+  expect-eq  !>(~[(j n1) (j n3) (j late)])
   !>((roots-of:vw art ~[(j n1) (j n3) (j late)]))
+::
+::  ---- tiers ------------------------------------------------------------------
+::
+::  a bare atom widened into each class: moons are 64 bits, comets 128
+++  moon   `@p`(bex 40)
+++  comet  `@p`(bex 100)
+::
+++  test-tier-everyone-admits-comets
+  ^-  tang
+  (expect-eq !>(%.y) !>((may-tier:kc %pawn comet)))
+::
+++  test-tier-moons-block-comets
+  ^-  tang
+  %+  weld
+    (expect-eq !>(%.n) !>((may-tier:kc %earl comet)))
+  (expect-eq !>(%.y) !>((may-tier:kc %earl moon)))
+::
+++  test-tier-planets-block-moons
+  ^-  tang
+  %+  weld
+    (expect-eq !>(%.n) !>((may-tier:kc %duke moon)))
+  (expect-eq !>(%.y) !>((may-tier:kc %duke ~sampel-palnet)))
+::
+++  test-tier-stars-block-planets
+  ^-  tang
+  %+  weld
+    (expect-eq !>(%.n) !>((may-tier:kc %king ~sampel-palnet)))
+  (expect-eq !>(%.y) !>((may-tier:kc %king ~marzod)))
+::
+::  a tier admits its own rank and everything above it, never below
+++  test-tier-galaxies-only
+  ^-  tang
+  %+  weld
+    (expect-eq !>(%.n) !>((may-tier:kc %czar ~marzod)))
+  (expect-eq !>(%.y) !>((may-tier:kc %czar ~zod)))
 --

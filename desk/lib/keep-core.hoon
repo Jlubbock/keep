@@ -48,13 +48,32 @@
   ?:  =(i.es e)  $(es t.es)
   [i.es $(es t.es)]
 ::
+::  ---- commenting tiers -------------------------------------------------------
+::
+::  czar outranks pawn: a tier admits its own rank and everything above it
+++  grade
+  |=  r=rank:title
+  ^-  @ud
+  ?-  r
+    %czar  0
+    %king  1
+    %duke  2
+    %earl  3
+    %pawn  4
+  ==
+::
+++  may-tier
+  |=  [min=rank:title who=ship]
+  ^-  ?
+  (lte (grade (clan:title who)) (grade min))
+::
 ::  ---- clearnet --------------------------------------------------------------
 ::
 ++  reserved
   ^-  (set @t)
   %-  sy
   :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
-      '/keep/ship'   '/keep/style.css'  '/keep/app.js'
+      '/keep/ship'   '/keep/comments'  '/keep/style.css'  '/keep/app.js'
   ==
 ::
 ++  slugify
