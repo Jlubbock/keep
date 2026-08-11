@@ -39,6 +39,7 @@
       [%list =lyst members=(set ship)]
       [%admit =lyst who=(set ship)]
       [%evict =lyst who=(set ship)]
+      [%unlist =lyst]
       ::
       [%sub who=ship]
       [%unsub who=ship]

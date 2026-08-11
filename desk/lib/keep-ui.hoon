@@ -682,6 +682,12 @@
                     ;+  (hidden "back" "/keep/lists/{nm}")
                     ;input(type "text", name "who", class "k-add", placeholder "~sampel-palnet", autocomplete "off");
                   ==
+                  ;form(method "post", action "/keep", class "k-one")
+                    ;+  (hidden "what" "unlist")
+                    ;+  (hidden "list" nm)
+                    ;+  (hidden "back" "/keep/lists")
+                    ;button(type "submit", class "k-link k-del"): delete list
+                  ==
                 ==
           ==
     ==

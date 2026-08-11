@@ -411,6 +411,15 @@
       :_  this(lists all)
       (give:hc (lists-of:hc all))
     ::
+    ::  the log's grown revisions stay readable and members keep their keens;
+    ::  gone from lists just means nothing new fans out to it
+        %unlist
+      ?:  =(%public lyst.act)  ~|(%keep-cannot-unlist-public !!)
+      ?.  (~(has by lists) lyst.act)  `this
+      =/  all  (~(del by lists) lyst.act)
+      :_  this(lists all)
+      (give:hc (lists-of:hc all))
+    ::
     ::  ---- following ---------------------------------------------------------
         %sub
       =/  f=feed  [who.act /index]
@@ -1433,6 +1442,11 @@
     ?~  nom=(slaw %tas (arg q 'list'))  ~
     ?~  who=(slaw %p (arg q 'who'))  ~
     (self [%evict u.nom (sy ~[u.who])])
+  ::
+  ?:  =('unlist' what)
+    ?~  nom=(slaw %tas (arg q 'list'))  ~
+    ?:  =(%public u.nom)  ~
+    (self [%unlist u.nom])
   ~
 ::
 ::  ---- telling the local ship ------------------------------------------------
