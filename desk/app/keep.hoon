@@ -147,6 +147,7 @@
     :~  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
         [%pass /pals %agent [our.bowl %pals] %watch /targets]
         (index-card:hc ~ ~)
+        (linkmap-card:hc ~)
     ==
   ;:  weld
     boot
@@ -233,8 +234,9 @@
       ==
     ==
   :_  this(state new)
-  :+  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
-    (index-card:hc sites.new posts.new)
+  :^    [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
+      (index-card:hc sites.new posts.new)
+    (linkmap-card:hc sites.new)
   assets:hc
 ::
 ++  on-peek
@@ -311,7 +313,7 @@
           %+  cache:hc  url
           %-  manx-response:gen:srv
           (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act ~)
-        ~[art (index-card:hc new-sites new-posts)]
+        ~[art (index-card:hc new-sites new-posts) (linkmap-card:hc new-sites)]
       :_  this(posts new-posts, sites new-sites)
       :(weld grows cards web (give:hc [%posted id entry]))
     ::
@@ -352,7 +354,10 @@
       =/  new-sites      ?~(url sites (~(del by sites) u.url))
       =/  web=(list card)
         ?~  url  ~
-        ~[(uncache:hc u.url) (index-card:hc new-sites new-posts)]
+        :~  (uncache:hc u.url)
+            (index-card:hc new-sites new-posts)
+            (linkmap-card:hc new-sites)
+        ==
       ::  a reposter re-grew our bytes under their own /item, so tombing ours
       ::  ends our copy and not theirs
       =/  buries=(list card)
@@ -371,7 +376,11 @@
       ?^  got=(~(get by seen) entry.act)
         :_  this
         (give:hc [%body entry.act u.got (~(get by checked) entry.act)])
-      :_(this ~[(fetch-body:hc entry.act)])
+      =/  hed=(list card)
+        ?:  =(our.bowl ship.entry.act)  ~
+        ?:  (~(has by heads) entry.act)  ~
+        ~[(fetch-head:hc entry.act)]
+      :_(this (weld hed ~[(fetch-body:hc entry.act)]))
     ::
     ::  ---- lists -------------------------------------------------------------
         %list
@@ -1018,10 +1027,18 @@
   ^-  card
   [%pass /eyre/cache %arvo %e %set-response url ~]
 ::
+::  no-cache, or a ui update takes a hard refresh or a week: these urls are
+::  mutable, and eyre matches its cache on the exact url, so ?v= cannot bust
+++  fresh-asset
+  |=  [typ=@t =octs]
+  ^-  simple-payload:http
+  :_  `octs
+  [200 ~[['content-type' typ] ['cache-control' 'no-cache']]]
+::
 ++  assets
   ^-  (list card)
-  :~  (cache '/keep/style.css' (css-response:gen:srv (as-octs:mimes:html style-css)))
-      (cache '/keep/app.js' (js-response:gen:srv (as-octs:mimes:html app-js)))
+  :~  (cache '/keep/style.css' (fresh-asset 'text/css' (as-octs:mimes:html style-css)))
+      (cache '/keep/app.js' (fresh-asset 'text/javascript' (as-octs:mimes:html app-js)))
   ==
 ::
 ++  slugify    slugify:kc
@@ -1044,6 +1061,18 @@
   ^-  card
   %+  cache  '/keep/index'
   (manx-response:gen:srv (public-index:vw-bare (public-rows ss ps)))
+::
+::  sites inverted — id to slug, public posts only, so it hands a clearnet
+::  reader nothing the public index does not already
+++  linkmap-card
+  |=  ss=(map @t id)
+  ^-  card
+  =/  ls=(list [p=@t q=id])  ~(tap by ss)
+  =/  o=(map @t json)
+    |-  ^-  (map @t json)
+    ?~  ls  ~
+    (~(put by $(ls t.ls)) `@t`(scot %uv q.i.ls) s+p.i.ls)
+  (cache '/keep/linkmap' (json-response:gen:srv o+o))
 ::
 ++  site-of
   |=  e=entry
@@ -1197,6 +1226,42 @@
   ?~  got=(~(get by posts) u.i)  ~
   `page.u.got
 ::
+::  what the editor's [[ picker may cite: our posts, then walled posts whose
+::  head has landed — the head is the only place a title lives
+++  cands
+  ^-  (list cand:ui)
+  =/  out=(list cand:ui)
+    =/  ps=(list [p=id:keep q=item:keep])  ~(tap by posts)
+    %+  turn  ps
+    |=  [p=id:keep q=item:keep]
+    ^-  cand:ui
+    =/  e=entry  [our.bowl (welp (base first) (item-spur p))]
+    :*  wen.head.q
+        (fall title.head.q 'untitled')
+        our.bowl  p
+        (~(has in (fanned e)) %public)
+    ==
+  =/  known=(set id:keep)  (sy (turn out |=(c=cand:ui id.c)))
+  =/  w  wall
+  |-  ^-  (list cand:ui)
+  ?~  w
+    %+  sort  out
+    |=([a=cand:ui b=cand:ui] (gth wen.a wen.b))
+  ?:  =(our.bowl ship.entry.i.w)  $(w t.w)
+  ?~  hed=(~(get by heads) entry.i.w)  $(w t.w)
+  ?~  i=(slaw %uv (last-of path.entry.i.w))  $(w t.w)
+  ?:  (~(has in known) u.i)  $(w t.w)
+  %=  $
+    w      t.w
+    known  (~(put in known) u.i)
+    out    :_  out
+           :*  wen.u.hed
+               (fall title.u.hed 'untitled')
+               ship.entry.i.w  u.i
+               (from-public entry.i.w)
+           ==
+  ==
+::
 ::  ---- http ------------------------------------------------------------------
 ::
 ++  serve
@@ -1214,14 +1279,14 @@
   ::
       [%keep %style ~]
     ?.  =([~ %css] ext)  (paint rid not-found:gen:srv)
-    (paint rid (css-response:gen:srv (as-octs:mimes:html style-css)))
+    (paint rid (fresh-asset 'text/css' (as-octs:mimes:html style-css)))
   ::
       [%keep %app ~]
     ?.  =([~ %js] ext)  (paint rid not-found:gen:srv)
-    (paint rid (js-response:gen:srv (as-octs:mimes:html app-js)))
+    (paint rid (fresh-asset 'text/javascript' (as-octs:mimes:html app-js)))
   ::
       [%keep ~]        (render rid (feed-page:vw feed-rows))
-      [%keep %write ~]  (render rid (write-page:vw ~))
+      [%keep %write ~]  (render rid (write-page:vw ~ cands))
   ::
   ::  id first, ship last, like /keep/read: eyre makes its ext from the
   ::  final dot of the LAST segment, and a @uv id is full of dots
@@ -1239,7 +1304,7 @@
       ?:  (~(has in on) %public)  "everyone"
       =/  to=(list lyst)  ~(tap in on)
       ?~(to "everyone" (trip i.to))
-    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud]))
+    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud] cands))
   ::
       [%keep %comments ~]  (render rid (comments-page:vw talk-rules))
   ::
@@ -1259,6 +1324,13 @@
       ?^  bod  ~
       ?:  =(our.bowl u.who)  ~
       ~[(fetch-body e)]
+    ::
+    ::  a direct link may be this item's only path: with no index revision
+    ::  behind it, nothing else ever fetches the head, and an unjudged body
+    ::  renders with no warning
+      ?:  =(our.bowl u.who)  ~
+      ?:  (~(has by heads) e)  ~
+      ~[(fetch-head e)]
     ::
       ?:  =(our.bowl u.who)  ~
       ?~  i=(slaw %uv i.t.t.seg)  ~

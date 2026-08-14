@@ -19,6 +19,8 @@ const SCENARIOS = [
   { file: 'c5-delete.mjs', ships: [h.HOST, h.PEER, h.WITNESS],
     note: 'needs a third ship — the reader that keeps both copies is the control' },
   { file: 'c6-impostor.mjs', ships: [h.HOST, h.PEER], note: 'needs %rogue running on the peer' },
+  { file: 'c7-links.mjs', ships: [h.HOST, h.PEER],
+    note: 'the gated invite stays unaccepted — the direct link must be the item\'s only path' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its
   //  own assertions vacuously true.

@@ -26,6 +26,14 @@
       rolls=(list [=lyst:keep members=(set ship)])
       pending=(list [=feed:keep =lyst:keep])
   ==
+::
++$  cand                                 ::  a post the editor's picker can cite
+  $:  wen=@da
+      tit=@t
+      who=ship                           ::  who serves it, not who signed it
+      id=id:keep
+      pub=?                              ::  safe to cite in a public post
+  ==
 --
 ::
 |_  v=view
@@ -583,7 +591,7 @@
   ==
 ::
 ++  write-page
-  |=  pre=(unit [id=tape src=tape to=tape])
+  |=  [pre=(unit [id=tape src=tape to=tape]) cands=(list cand)]
   ^-  manx
   =/  aud=tape  ?~(pre "everyone" to.u.pre)
   %+  shell  %write
@@ -610,6 +618,12 @@
     ;div(id "k-ed", class "k-ed", contenteditable "true", spellcheck "false")
       ;+  nowt
     ==
+    ;*  %+  turn  cands
+        |=  c=cand
+        =/  i=tape  (trip (scot %uv id.c))
+        ;div(class "k-cand", hidden "", data-title "{(trip tit.c)}", data-ship "{(pp who.c)}", data-id "{i}", data-pub "{?:(pub.c "y" "n")}")
+          ;+  nowt
+        ==
   ==
 ::
 ++  invite-form

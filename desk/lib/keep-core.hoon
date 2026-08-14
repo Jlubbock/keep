@@ -75,6 +75,7 @@
   %-  sy
   :~  '/keep/index'  '/keep/write'  '/keep/lists'  '/keep/read'
       '/keep/ship'   '/keep/comments'  '/keep/style.css'  '/keep/app.js'
+      '/keep/linkmap'
   ==
 ::
 ++  slugify

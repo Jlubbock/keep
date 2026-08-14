@@ -49,6 +49,12 @@ at all.
   observed on the one whose body NOBODY fetched, since a body that has been
   served once may be answered from a cache rather than from gall. Runs BEFORE
   `c4-announce`, which is last by rule rather than by number.
+- `c7-links` — internal linking. The linkmap serves public id→slug to the
+  clearnet (the gated post's absence is controlled by the public post's
+  presence), and a direct read link cold-fetches the head with the body, so
+  a linked post arrives titled and judged. The gated invite is never
+  accepted, so the direct link is the item's only path — which is what an
+  internal link in someone's prose is.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
 

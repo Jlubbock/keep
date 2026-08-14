@@ -66,6 +66,48 @@
     return s;
   }
 
+  // stored internal hrefs are canonical /keep/read/…, but the page may live
+  // under a front like /hawk/keep — resolution is a paint-time concern, so
+  // the stored bytes stay client-agnostic
+  var MOUNT = (function () {
+    var m = /^(.*?\/keep)(\/|$)/.exec(window.location.pathname);
+    return m ? m[1] : '/keep';
+  })();
+
+  var INTERNAL = /^\/keep\/read\//;
+
+  function dress(root) {
+    Array.prototype.slice.call(root.querySelectorAll('a[href]')).forEach(function (a) {
+      var h = a.getAttribute('href');
+      if (INTERNAL.test(h)) {
+        a.classList.add('k-internal');
+        if (MOUNT !== '/keep') a.setAttribute('href', MOUNT + h.slice(5));
+      } else if (/^https?:/i.test(h)) {
+        a.classList.add('k-ext');
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener');
+      }
+    });
+  }
+
+  // clearnet pages only: a read URL is login-walled there, but a public post
+  // of this ship has a slug — the cached linkmap maps id to it, at read time,
+  // so the link survives the target being edited under a new id
+  var linkmapFetch = null;
+  function relink(root) {
+    if (document.querySelector('.k-shell')) return;
+    var as = Array.prototype.slice.call(root.querySelectorAll('a.k-internal'));
+    if (!as.length) return;
+    linkmapFetch = linkmapFetch ||
+      fetch('/keep/linkmap').then(function (r) { return r.json(); });
+    linkmapFetch.then(function (map) {
+      as.forEach(function (a) {
+        var m = /^\/keep\/read\/([^\/]+)\//.exec(a.getAttribute('href'));
+        if (m && map[m[1]]) a.setAttribute('href', map[m[1]]);
+      });
+    }).catch(function () {});
+  }
+
   // standard breaks: consecutive lines are one paragraph with line breaks
   // inside it; a blank line ends the paragraph and yields the paragraph gap
   function md(src) {
@@ -110,6 +152,8 @@
   function paint(target, src, mark) {
     var m = mark || 'md';
     target.innerHTML = (m === 'md') ? md(src) : '<pre>' + esc(src) + '</pre>';
+    dress(target);
+    relink(target);
   }
 
   function reader() {
@@ -145,7 +189,11 @@
   function talkPaint() {
     Array.prototype.slice.call(document.querySelectorAll('.k-cmt-src')).forEach(function (s) {
       var t = s.nextElementSibling;
-      if (t && t.classList.contains('k-cmt-body')) t.innerHTML = md(s.textContent);
+      if (t && t.classList.contains('k-cmt-body')) {
+        t.innerHTML = md(s.textContent);
+        dress(t);
+        relink(t);
+      }
     });
   }
 
@@ -297,7 +345,7 @@
 
   // inverse of rawCaret: the visible text node holding raw offset `target`,
   // counting hidden marker text without ever landing the caret inside it
-  function setCaretRaw(n, target) {
+  function rawPoint(n, target) {
     var node = null, off = 0, last = null, acc = 0;
     function walk(c) {
       if (node) return;
@@ -313,9 +361,15 @@
       Array.prototype.slice.call(c.childNodes).forEach(walk);
     }
     Array.prototype.slice.call(n.childNodes).forEach(walk);
+    if (!node && last) { node = last; off = last.textContent.length; }
+    if (!node) return null;
+    return { node: node, off: Math.max(0, Math.min(off, node.textContent.length)) };
+  }
+
+  function setCaretRaw(n, target) {
+    var p = rawPoint(n, target);
     var r = document.createRange();
-    if (node) r.setStart(node, Math.max(0, Math.min(off, node.textContent.length)));
-    else if (last) r.setStart(last, last.textContent.length);
+    if (p) r.setStart(p.node, p.off);
     else r.setStart(n, 0);
     r.collapse(true);
     var sel = window.getSelection();
@@ -385,6 +439,7 @@
       var rest = raw.slice(i), m = null, seg = null;
       if ((m = /^`([^`]+)`/.exec(rest))) seg = { kind: 'code', body: m[1], open: 1 };
       else if ((m = /^\\([!-\/:-@\[-`{-~])/.exec(rest))) seg = { kind: 'esc', body: m[1], open: 1 };
+      else if ((m = /^\[\[([^\[\]]+)\]\]/.exec(rest))) seg = { kind: 'wiki', body: m[1], open: 2 };
       else if ((m = /^!?\[([^\[\]]+)\]\((?:[^\s()]|\([^\s()]*\))*(?:\s+(?:"[^"]*"|'[^']*'))?\)/.exec(rest)))
         seg = { kind: 'link', body: m[1], open: m[0].indexOf('[') + 1 };
       else if ((m = /^\*\*\*(\S(?:.*?\S)?)\*\*\*/.exec(rest))) seg = { kind: 'bi', body: m[1], open: 3 };
@@ -403,7 +458,7 @@
     return segs;
   }
 
-  var INLINE_CLASS = { code: 'ed-code', b: 'ed-b', i: 'ed-i', bi: 'ed-bi', link: 'ed-link' };
+  var INLINE_CLASS = { code: 'ed-code', b: 'ed-b', i: 'ed-i', bi: 'ed-bi', link: 'ed-link', wiki: 'ed-link' };
 
   // caret is a raw offset or null: the token enclosing it (boundaries
   // inclusive, so approaching from either side reveals first) renders as
@@ -610,6 +665,135 @@
     var send = document.getElementById('k-send');
     var audience = document.getElementById('k-audience');
 
+    // ---- the [[ picker --------------------------------------------------
+    //
+    // [[ is picker sugar, not syntax: picking a post inserts a finished
+    // markdown link, because a reader's renderer cannot resolve someone
+    // else's title to an id. the source never keeps a wikilink the picker
+    // could have compiled.
+
+    var cands = Array.prototype.slice.call(document.querySelectorAll('.k-cand')).map(function (n) {
+      return { title: n.dataset.title || 'untitled', ship: n.dataset.ship,
+               id: n.dataset.id, pub: n.dataset.pub === 'y' };
+    });
+    var byId = {};
+    cands.forEach(function (c) { byId[c.id] = c; });
+
+    function linkOf(c) {
+      var text = c.title.replace(/[\[\]]/g, '').trim() || 'untitled';
+      return '[' + text + '](/keep/read/' + c.id + '/' + c.ship + ')';
+    }
+
+    var pick = document.createElement('div');
+    pick.className = 'k-pick';
+    pick.hidden = true;
+    document.body.appendChild(pick);
+    var pickItems = [], pickSel = 0, pickFrom = 0;
+
+    function hidePick() { pick.hidden = true; pickSel = 0; }
+
+    function renderPick() {
+      pick.innerHTML = '';
+      pickItems.forEach(function (c, i) {
+        var d = document.createElement('div');
+        d.className = 'k-pick-it' + (i === pickSel ? ' on' : '');
+        var t = document.createElement('span');
+        t.className = 'k-pick-title';
+        t.textContent = c.title;
+        var w = document.createElement('span');
+        w.className = 'k-pick-who';
+        w.textContent = c.ship + (c.pub ? '' : ' · gated');
+        d.appendChild(t);
+        d.appendChild(w);
+        // mousedown, not click: a click blurs the editor first and the
+        // selection the insert needs is gone
+        d.addEventListener('mousedown', function (e) { e.preventDefault(); insertPick(c); });
+        pick.appendChild(d);
+      });
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        var rect = sel.getRangeAt(0).getBoundingClientRect();
+        // a collapsed range at a line start measures 0x0; use the line box
+        if (!rect.height && sel.anchorNode) {
+          var host = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+          if (host) rect = host.getBoundingClientRect();
+        }
+        pick.style.left = Math.max(0, Math.min(rect.left, window.innerWidth - 300)) + 'px';
+        pick.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+      }
+      pick.hidden = false;
+    }
+
+    function pickCheck(got) {
+      if (!cands.length) return;
+      var raw = got.raws[got.line] || '';
+      var m = /\[\[([^\[\]]*)$/.exec(raw.slice(0, got.off));
+      if (!m) { hidePick(); return; }
+      var q = m[1].toLowerCase();
+      pickFrom = got.off - m[0].length;
+      pickItems = cands.filter(function (c) {
+        return c.title.toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 8);
+      if (!pickItems.length) { hidePick(); return; }
+      pickSel = Math.min(pickSel, pickItems.length - 1);
+      renderPick();
+    }
+
+    function insertPick(c) {
+      hidePick();
+      var line = el.children[current.line];
+      if (!line) return;
+      var a = rawPoint(line, pickFrom), b = rawPoint(line, current.off);
+      if (!a || !b) return;
+      var r = document.createRange();
+      r.setStart(a.node, a.off);
+      r.setEnd(b.node, b.off);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      document.execCommand('insertText', false, linkOf(c));
+    }
+
+    el.addEventListener('keydown', function (e) {
+      if (pick.hidden || !pickItems.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); pickSel = (pickSel + 1) % pickItems.length; renderPick(); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); pickSel = (pickSel + pickItems.length - 1) % pickItems.length; renderPick(); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertPick(pickItems[pickSel]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); hidePick(); }
+    });
+    el.addEventListener('blur', hidePick);
+
+    // leftover [[...]] from hand-typing: resolve by title against the same
+    // candidates the picker uses, newest first; unresolvable stays literal
+    function compileWiki(src) {
+      return src.replace(/\[\[([^\[\]]+)\]\]/g, function (whole, t) {
+        var q = t.trim().toLowerCase();
+        for (var i = 0; i < cands.length; i++) {
+          if (cands[i].title.toLowerCase() === q) return linkOf(cands[i]);
+        }
+        return whole;
+      });
+    }
+
+    // a read URL of a gated post IS the capability: gating is unguessable
+    // addresses, and remote scry answers whoever holds one. the agent is
+    // content-blind by design, so only the editor can catch this.
+    function leakWarning(src) {
+      if (audience.value !== 'everyone') return null;
+      var gated = 0, unknown = 0, m;
+      var re = /\/keep\/read\/([^\/\s)]+)\//g;
+      while ((m = re.exec(src))) {
+        var c = byId[m[1]];
+        if (!c) unknown += 1;
+        else if (!c.pub) gated += 1;
+      }
+      if (!gated && !unknown) return null;
+      var parts = [];
+      if (gated) parts.push(gated + ' link(s) to a gated post — every reader of this public post can fetch it');
+      if (unknown) parts.push(unknown + ' link(s) to a post this ship cannot vouch is public');
+      return 'this post is public and has ' + parts.join(', and ') + '. publish anyway?';
+    }
+
     // rebuilding a line mid-IME-composition cancels the composition
     var composing = false;
     el.addEventListener('compositionstart', function () { composing = true; });
@@ -638,6 +822,7 @@
       var src = got.raws.join('\n');
       if (count) scheduleCount(src);
       current = { src: src, line: got.line, off: got.off };
+      pickCheck(got);
       var sel = window.getSelection();
       seenSel.node = sel ? sel.anchorNode : null;
       seenSel.off = sel ? sel.anchorOffset : -1;
@@ -753,8 +938,10 @@
     if (send) {
       send.addEventListener('click', function (e) {
         e.preventDefault();
-        var src = source(el).trim();
+        var src = compileWiki(source(el).trim());
         if (!src) return;
+        var warn = leakWarning(src);
+        if (warn && !window.confirm(warn)) return;
         var parts = split(src);
         send.textContent = '…';
         var fields = {

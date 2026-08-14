@@ -40,4 +40,20 @@
 ++  test-day
   ^-  tang
   (expect-eq !>("~2026.1.1") !>((day:vw ~2026.1.1)))
+::
+++  cnd
+  ^-  cand:ui
+  [~2026.1.1 'a title' ~wes 0v5 %.n]
+::
+::  the write page ships the picker's candidates as data attributes
+++  test-write-page-carries-candidates
+  ^-  tang
+  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd]))
+  (expect-eq !>(%.y) !>(?=(^ (find "data-id=\"0v5\"" out))))
+::
+::  a gated candidate says so — the leak guard reads this flag
+++  test-candidate-marks-gated
+  ^-  tang
+  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd]))
+  (expect-eq !>(%.y) !>(?=(^ (find "data-pub=\"n\"" out))))
 --

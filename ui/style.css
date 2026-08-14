@@ -284,6 +284,34 @@ form { margin: 0; }
 .k-ed .ed-code { font-family: 'IBM Plex Mono', monospace; font-size: .85em; }
 .k-ed .ed-link { border-bottom: 1px solid #d8d2c6; }
 
+/* ---- links ------------------------------------------------------------ */
+
+/* an internal link stays in the house; an external one says it leaves */
+.k-body a.k-ext::after, .k-cmt-body a.k-ext::after {
+  content: '\2197'; font-size: .7em; margin-left: 2px; color: #b3ac9f;
+}
+
+/* the [[ picker floats under the caret */
+.k-pick {
+  position: absolute; z-index: 10; min-width: 260px; max-width: 340px;
+  background: #fbfaf8; border: 1px solid #e8e3d9;
+  box-shadow: 0 6px 24px rgba(23, 22, 20, 0.07);
+}
+.k-pick-it {
+  display: flex; gap: 14px; align-items: baseline; justify-content: space-between;
+  padding: 8px 12px; cursor: pointer; color: #8a857c;
+}
+.k-pick-it.on { background: #f1ede4; color: #171614; }
+.k-pick-it:hover { color: #171614; }
+.k-pick-title {
+  font-size: 15px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-pick-who {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: #c3bcae; white-space: nowrap;
+}
+
 /* ---- lists ------------------------------------------------------------ */
 
 .k-list { border-bottom: 1px solid #eeeae1; padding: 20px 0; }
