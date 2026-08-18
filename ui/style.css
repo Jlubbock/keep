@@ -197,7 +197,7 @@ form { margin: 0; }
 }
 
 .k-body {
-  font-size: 19px; line-height: 1.68; font-weight: 400; color: #221f1b;
+  font-size: 19px; line-height: 1.45; font-weight: 400; color: #221f1b;
   text-wrap: pretty; overflow-wrap: break-word;
 }
 .k-body p { margin: 0 0 24px; }
@@ -241,12 +241,12 @@ form { margin: 0; }
 .k-send:hover { border-color: #171614; }
 
 .k-ed {
-  font-size: 19px; line-height: 1.68; color: #221f1b; min-height: 60vh;
+  font-size: 19px; line-height: 1.45; color: #221f1b; min-height: 60vh;
   caret-color: #171614; text-wrap: pretty;
 }
 /* single breaks sit tight; the blank line below carries the paragraph gap */
 .k-ed > div {
-  margin: 0 0 4px; font-weight: 400; font-size: 19px; line-height: 1.68;
+  margin: 0 0 4px; font-weight: 400; font-size: 19px; line-height: 1.45;
   color: #221f1b; font-style: normal; padding-left: 0; border-left: none;
   letter-spacing: 0; text-transform: none; font-family: inherit;
 }
@@ -375,7 +375,7 @@ form { margin: 0; }
 .k-cmt-head a:hover { color: #171614; }
 .k-cmt-when { color: #c3bcae; }
 .k-cmt-body {
-  font-size: 16px; line-height: 1.62; color: #221f1b;
+  font-size: 16px; line-height: 1.45; color: #221f1b;
   text-wrap: pretty; overflow-wrap: break-word;
 }
 .k-cmt-body p { margin: 0 0 14px; }
@@ -407,7 +407,7 @@ form { margin: 0; }
 .k-say { margin-top: 22px; }
 .k-say-body {
   width: 100%; min-height: 110px; resize: vertical;
-  font-family: Spectral, Georgia, serif; font-size: 16px; line-height: 1.62;
+  font-family: Spectral, Georgia, serif; font-size: 16px; line-height: 1.45;
   color: #221f1b; background: transparent;
   border: 1px solid #e8e3d9; padding: 12px 14px;
 }
