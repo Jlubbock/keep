@@ -1,5 +1,6 @@
 /-  keep, kt=keep-talk, ks=keep-sync, hark
 /+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core, kh=keep-hark
+/+  gsp=gossip
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
 ::
@@ -22,7 +23,7 @@
 +$  item-0  [head=head-0 =page]
 ::
 +$  versioned-state
-  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6)
+  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6 state-7)
 ::
 +$  state-0
   $:  %0
@@ -128,10 +129,35 @@
       keeping=(map entry (set lyst))
       pending=(map feed lyst)
   ==
+::
++$  state-7
+  $:  %7
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry verdict:keep)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)
+      crew=(map @ux @t)                ::  imported hashes -> raw address, ours only
+      claims=(map @ux ship)            ::  every claim heard, matched or not yet
+      enrolled=(unit [email=@t hash=@ux wen=@da])
+  ==
 --
 ::
+%-  %+  agent:gsp
+      [hops=2 hear=%anybody tell=%anybody pass=%.n]
+    %+  ~(put by *(map mark $-(* vase)))
+      %keep-claim
+    |=(n=* !>(;;(claim:keep n)))
 %-  agent:dbug
-=|  state-6
+=|  state-7
 =*  state  -
 ^-  agent:gall
 =<
@@ -161,12 +187,21 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ::
-  =/  new=state-6
+  =/  new=state-7
     ?-  -.old
-      %6  old
+      %7  old
+    ::
+        %6
+      :*  %7
+          posts.old  lists.old  subs.old
+          wall.old  refs.old  heads.old  seen.old
+          off.old  sites.old  follows.old
+          checked.old  keeping.old  pending.old
+          ~  ~  ~
+      ==
     ::
         %5
-      :*  %6
+      :*  %7
           posts.old
           lists.old
           subs.old
@@ -174,10 +209,11 @@
           off.old  sites.old  follows.old
           (recheck:hc checked.old)
           keeping.old  pending.old
+          ~  ~  ~
       ==
     ::
         %4
-      :*  %6
+      :*  %7
           posts.old
           lists.old
           subs.old
@@ -185,10 +221,11 @@
           off.old  sites.old  follows.old
           (recheck:hc checked.old)  keeping.old
           ~                              ::  pending
+          ~  ~  ~
       ==
     ::
         %3
-      :*  %6
+      :*  %7
           posts.old
           (wipe-logs:hc lists.old)
           subs.old
@@ -200,10 +237,11 @@
           ~                              ::  checked
           keeping.old
           ~                              ::  pending
+          ~  ~  ~
       ==
     ::
         %2
-      :*  %6
+      :*  %7
           ~                              ::  posts   — old heads
           (wipe-logs:hc lists.old)       ::  logs    — pointed at those posts
           subs.old
@@ -217,20 +255,21 @@
           ~                              ::  checked
           ~                              ::  keeping
           ~                              ::  pending
+          ~  ~  ~
       ==
     ::
         %1
-      :*  %6
+      :*  %7
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
-          ~  ~  ~
+          ~  ~  ~  ~  ~  ~
       ==
     ::
         %0
-      :*  %6
+      :*  %7
           ~  (wipe-logs:hc lists.old)  subs.old  ~  ~  ~  ~  off.old  ~
           (ships-of:hc subs.old)
-          ~  ~  ~
+          ~  ~  ~  ~  ~  ~
       ==
     ==
   :_  this(state new)
@@ -253,6 +292,9 @@
   ::  subs is who we tail, mechanically; follows is whose posts we asked for
     [%x %follows ~]  ``noun+!>(follows)
     [%x %pending ~]  ``noun+!>(pending)
+    [%x %crew ~]      ``noun+!>(crew)
+    [%x %claims ~]    ``noun+!>(claims)
+    [%x %enrolled ~]  ``noun+!>(enrolled)
   ::
   ::  for %keep-talk: may `who` be handed this article's pointer at all
       [%x %may-read @ @ ~]
@@ -466,6 +508,26 @@
       =/  pp  (~(del by pending) feed.act)
       :_  this(pending pp)
       (give:hc [%pending (wait-of:hc pp)])
+    ::
+    ::  ---- subscribers -------------------------------------------------------
+        %enroll
+      =/  ms=(list @t)  (mails-of:hc email.act)
+      ?~  ms  `this
+      =/  hash=@ux  `@ux`(shax i.ms)
+      :_  this(enrolled `[i.ms hash now.bowl])
+      ~[(invent:gsp keep-claim+!>(`claim:keep`[hash our.bowl now.bowl]))]
+    ::
+        %unenroll
+      `this(enrolled ~)
+    ::
+    ::  claims already heard sweep against the new rows, so import order
+    ::  and claim order do not matter
+        %import
+      =/  cc=(map @ux @t)  (~(uni by crew) (crew-of:hc text.act))
+      =^  cards  lists  (matched:hc cc ~(tap by claims))
+      :_  this(crew cc)
+      ?~  cards  ~
+      (weld cards (give:hc (lists-of:hc lists)))
     ==
   ::
   ::  ---- a hosted thread changed: re-cache its clearnet page -------------------
@@ -489,6 +551,13 @@
         %invite
       =/  f=feed  [src.bowl path.gos]
       ?:  (~(has by subs) f)  `this
+      ::  answering our email claim: accept without asking, and follow
+      ?:  &(?=(^ enrolled) =(%subscribers lyst.gos))
+        =/  ss  (~(put by subs) f first:hc)
+        =/  ff  (~(put in follows) src.bowl)
+        :_  this(subs ss, follows ff)
+        :-  (tail:hc f first:hc)
+        (give:hc (peers-of:hc ss off))
       ?:  (~(has by pending) f)  `this
       ::  any ship may invite us, so bound what one of them can park here
       ?:  (gte (waiting:hc src.bowl) 8)  `this
@@ -511,6 +580,14 @@
 ++  on-watch
   |=  =path
   ^-  (quip card _this)
+  ::  a gossip peer subscribing: seed them with our claim, nothing more
+  ?:  =(/~/gossip/source path)
+    :_  this
+    ?~  enrolled  ~
+    :_  ~
+    :*  %give  %fact  ~  %keep-claim
+        !>(`claim:keep`[hash.u.enrolled our.bowl wen.u.enrolled])
+    ==
   ?>  =(our.bowl src.bowl)
   ?+    path  (on-watch:def path)
       [%http-response *]  `this
@@ -584,6 +661,19 @@
       :_  this
       (turn (unreached:hc known:hc) announce:hc)
     ==
+  ::
+  ::  ---- a claim arriving over gossip ------------------------------------------
+      [%~.~ %gossip %gossip ~]
+    ?.  ?=(%fact -.sign)  `this
+    ?.  =(%keep-claim p.cage.sign)  `this
+    =/  c=claim:keep  !<(claim:keep q.cage.sign)
+    ?:  =(our.bowl who.c)  `this
+    =/  cs  (~(put by claims) hash.c who.c)
+    ?.  (~(has by crew) hash.c)  `this(claims cs)
+    =^  cards  lists  (matched:hc crew ~[[hash.c who.c]])
+    :_  this(claims cs)
+    ?~  cards  ~
+    (weld cards (give:hc (lists-of:hc lists)))
   ==
 ::
 ++  on-arvo
@@ -847,6 +937,55 @@
       [[who %keep] %poke %keep-gossip !>(`gossip:keep`[%invite lyst spur])]
   ==
 ::
+::  ---- subscribers -----------------------------------------------------------
+::
+::  every separator-split token with an '@', lowercased — takes a full csv
+::  export and a bare address list alike
+++  mails-of
+  |=  t=@t
+  ^-  (list @t)
+  =/  raw  (trip t)
+  =|  cur=tape
+  =|  out=(list @t)
+  |-  ^-  (list @t)
+  =/  fin=(list @t)
+    ?.  (lien cur |=(c=@tD =('@' c)))  out
+    [(crip (cass (flop cur))) out]
+  ?~  raw  fin
+  ?:  ?|  =(',' i.raw)    =(';' i.raw)    =(' ' i.raw)  =('"' i.raw)
+          =('\09' i.raw)  =('\0a' i.raw)  =('\0d' i.raw)
+      ==
+    $(raw t.raw, cur ~, out fin)
+  $(raw t.raw, cur [i.raw cur])
+::
+++  crew-of
+  |=  t=@t
+  ^-  (map @ux @t)
+  %-  ~(gas by *(map @ux @t))
+  (turn (mails-of t) |=(e=@t [`@ux`(shax e) e]))
+::
+::  admit every claimant whose hash is a row of cc into %subscribers
+++  matched
+  |=  [cc=(map @ux @t) cs=(list [h=@ux w=ship])]
+  ^-  [(list card) (map lyst roster)]
+  =/  lsts  lists
+  =|  cards=(list card)
+  |-  ^-  [(list card) (map lyst roster)]
+  ?~  cs  [cards lsts]
+  ?.  (~(has by cc) h.i.cs)  $(cs t.cs)
+  =^  more  lsts  (enlist lsts w.i.cs)
+  $(cs t.cs, cards (weld cards more))
+::
+++  enlist
+  |=  [lsts=(map lyst roster) who=ship]
+  ^-  [(list card) (map lyst roster)]
+  =/  lst=roster
+    ?^  got=(~(get by lsts) %subscribers)  u.got
+    [~ (mint %subscribers) ~]
+  ?:  (~(has in members.lst) who)  [~ lsts]
+  :-  (welcome %subscribers salt.lst log.lst who)
+  (~(put by lsts) %subscribers lst(members (~(put in members.lst) who)))
+::
 ++  from-public
   |=  e=entry
   ^-  ?
@@ -1010,6 +1149,14 @@
   |=  [name=@tas s=sub:ks]
   ^-  syncrow:ui
   [name url.s last.s ~(wyt in seen.s) ?=(^ tid.s)]
+::
+++  subsync-now
+  ^-  subsync:ui
+  :*  ?~(enrolled ~ `email.u.enrolled)
+      ~(wyt by crew)
+      ?~  got=(~(get by lists) %subscribers)  0
+      ~(wyt in members.u.got)
+  ==
 ::
 ++  sync-previews
   ^-  (list prevrow:ui)
@@ -1357,7 +1504,7 @@
       [%keep %lists @ ~]
     (render rid (lists-page:vw (slaw %tas i.t.t.seg)))
   ::
-      [%keep %sync ~]  (render rid (sync-page:vw sync-rows sync-previews))
+      [%keep %sync ~]  (render rid (sync-page:vw sync-rows sync-previews subsync-now))
   ::
       [%keep %ship @ ~]
     ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
@@ -1602,6 +1749,19 @@
   ?:  =('sync-untrack' what)
     ?~  nom=(slaw %tas (arg q 'name'))  ~
     (sync-self [%untrack u.nom])
+  ::
+  ?:  =('enroll' what)
+    =/  e=@t  (arg q 'email')
+    ?:  =('' e)  ~
+    (self [%enroll e])
+  ::
+  ?:  =('unenroll' what)
+    (self [%unenroll ~])
+  ::
+  ?:  =('import' what)
+    =/  t=@t  (arg q 'emails')
+    ?:  =('' t)  ~
+    (self [%import t])
   ~
 ::
 ::  ---- telling the local ship ------------------------------------------------
