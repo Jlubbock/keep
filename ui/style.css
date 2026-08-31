@@ -14,6 +14,24 @@ button.k-link {
   font: inherit; color: inherit; cursor: pointer;
 }
 
+/* a word that acts carries a faint rule at rest; the rule takes the word's
+   hover color. text-decoration, not border-bottom — the touch hit-area
+   padding would push a border 10px under the text. */
+.k-send, .k-say-foot .k-say-send, a.k-edit, button.k-follow,
+button.k-talk-toggle, button.k-yes, button.k-no, .k-note button,
+.k-meta button.k-del, .k-members button.k-del, .k-member button.k-del,
+.k-meta button.k-re, button.k-ban, .k-reply summary {
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+.k-send:hover, .k-say-foot .k-say-send:hover, a.k-edit:hover,
+button.k-follow:hover, button.k-talk-toggle:hover, button.k-yes:hover,
+button.k-no:hover, .k-note button:hover, .k-meta button.k-del:hover,
+.k-members button.k-del:hover, .k-member button.k-del:hover,
+.k-meta button.k-re:hover, button.k-ban:hover, .k-reply summary:hover {
+  text-decoration-color: currentColor;
+}
+
 .k-shell {
   display: grid; grid-template-columns: 208px 1fr;
   min-height: 100vh; min-height: 100dvh;
@@ -61,6 +79,10 @@ form { margin: 0; }
   background: transparent; color: #171614; width: 100%;
   padding: 0 0 6px; margin-bottom: 10px;
 }
+/* outline:none above took the focus ring; the baseline turning ink is
+   the replacement, on every field */
+.k-find:focus, .k-add:focus, .k-new:focus { border-color: #171614; }
+.k-say-body:focus { border-color: #171614; }
 .k-clock {
   margin-top: auto; font-family: 'IBM Plex Mono', monospace;
   font-size: 11px; color: #c3bcae;
@@ -105,21 +127,27 @@ form { margin: 0; }
   color: #8a857c; white-space: nowrap;
 }
 .k-re {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #ddd7ca;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #b3ac9f;
 }
 /* the row's 20px gap reads tight against a right-aligned date; nudge the
    glyph only in the rows, leaving the reader's meta line alone */
-.k-row-in .k-re { margin-left: 8px; }
+.k-row-in .k-re { margin-left: 8px; font-size: 16px; }
 .k-re:hover { color: #171614; }
 .k-re.on { color: #171614; cursor: default; }
 .k-del {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #ede9e0;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #b3ac9f;
 }
-.k-row:hover .k-del { color: #ddd7ca; }
 .k-del:hover { color: #8a2f1f; }
-.k-row-in .k-del { margin-left: 8px; }
+.k-row-in .k-del { margin-left: 8px; font-size: 16px; }
+/* word deletes (delete · delete list · cancel · untrack) sit with the
+   12px verbs; only the bare × keeps glyph size */
+.k-meta button.k-del, .k-members button.k-del, .k-member button.k-del {
+  font-size: 12px; color: #8a857c;
+}
+.k-meta button.k-del:hover, .k-members button.k-del:hover,
+.k-member button.k-del:hover { color: #8a2f1f; }
 .k-edit {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #ede9e0;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
 }
 .k-edit:hover { color: #171614; }
 
@@ -139,7 +167,7 @@ form { margin: 0; }
   padding: 18px 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
   color: #b3ac9f;
 }
-.k-note button { color: #b3ac9f; }
+.k-note button { color: #8a857c; }
 .k-note button:hover { color: #171614; }
 
 /* ---- reader ----------------------------------------------------------- */
@@ -147,12 +175,12 @@ form { margin: 0; }
 /* 620px is substack's post measure — px not ch, which drifts with font-size */
 .k-read { max-width: 620px; margin: 0 auto; }
 .k-back {
-  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #d0c9bb;
+  font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: #b3ac9f;
   display: inline-block; margin-bottom: 44px; transition: color .3s ease;
 }
 .k-back:hover { color: #171614; }
 /* bigger on the clearnet page, where it is the only navigation on screen */
-.k-solo .k-back { font-size: 18px; }
+.k-solo .k-back { font-size: 22px; }
 .k-art-title {
   font-size: 36px; line-height: 1.2; font-weight: 600;
   letter-spacing: -0.015em; margin: 0 0 16px;
@@ -164,19 +192,20 @@ form { margin: 0; }
   color: #8a2f1f; background: #fbf1ec; border: 1px solid #e8cabd;
   padding: 10px 12px; margin: 0 0 16px; max-width: 52ch;
 }
+/* quiet by palette, not by opacity: dimming the row twice was hiding the
+   verbs in it, and on touch it never undimmed */
 .k-meta {
-  display: flex; gap: 16px; align-items: baseline;
+  display: flex; flex-direction: column; gap: 9px;
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
-  margin-bottom: 48px; opacity: 0.55; transition: opacity .3s ease;
+  margin-bottom: 48px;
 }
-.k-meta:hover { opacity: 1; }
+.k-meta-row { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+/* anywhere, not ellipsis: the address is the information */
+.k-meta .k-site { overflow-wrap: anywhere; min-width: 0; }
 .k-meta .when { color: #c3bcae; }
 .k-meta .re { color: #b3ac9f; }
 .k-meta .re.on { color: #171614; }
 .k-meta a:hover, .k-meta button:hover { color: #171614; }
-.k-meta .k-del { color: #b3ac9f; }
-.k-meta .k-del:hover { color: #8a2f1f; }
-.k-meta .k-edit { color: #b3ac9f; }
 
 .k-index-head {
   font-family: 'IBM Plex Mono', monospace; font-size: 17px; color: #171614;
@@ -234,11 +263,21 @@ form { margin: 0; }
 .k-to { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
 .k-to .lbl { color: #b3ac9f; white-space: nowrap; }
 .k-to a { color: #c3bcae; white-space: nowrap; }
-.k-to a:hover, .k-to a.on { color: #171614; }
+.k-to a:hover {
+  color: #171614; text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+.k-to a.on {
+  color: #171614; text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #171614;
+}
 .k-pub { display: flex; gap: 18px; align-items: baseline; white-space: nowrap; }
 .k-words { color: #c3bcae; }
-.k-send { color: #171614; border-bottom: 1px solid #d8d2c6; }
-.k-send:hover { border-color: #171614; }
+/* own type spec: outside the editor's meta row (the sync page's scan)
+   it would otherwise inherit the serif */
+.k-send {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #171614;
+}
 
 .k-ed {
   font-size: 19px; line-height: 1.45; color: #221f1b; min-height: 60vh;
@@ -326,16 +365,23 @@ form { margin: 0; }
   padding: 16px 0 4px; display: flex; flex-wrap: wrap; gap: 8px 18px;
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
 }
-.k-member { display: flex; gap: 6px; align-items: baseline; }
-.k-x { color: #d8d2c6; }
-.k-x:hover { color: #171614; }
+/* mono on the member itself, not only .k-members: the sync rows use
+   .k-member outside a .k-members wrapper */
+.k-member {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+}
+.k-x { font-size: 15px; color: #b3ac9f; }
+.k-x:hover { color: #8a2f1f; }
 .k-add {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; border: none;
-  background: transparent; color: #171614; width: 130px; padding: 0;
+  border-bottom: 1px solid #ddd7ca;
+  background: transparent; color: #171614; width: 130px; padding: 0 0 3px;
 }
 .k-new {
   font-size: 20px; font-family: Spectral, Georgia, serif; border: none;
-  background: transparent; color: #171614; width: 100%; padding: 0;
+  border-bottom: 1px solid #ddd7ca;
+  background: transparent; color: #171614; width: 100%; padding: 0 0 4px;
 }
 .k-new-wrap { padding: 20px 0; }
 
@@ -352,8 +398,20 @@ form { margin: 0; }
 .k-invite-list { flex: 1; }
 .k-yes { color: #8a857c; }
 .k-yes:hover { color: #171614; }
-.k-no { color: #d8d2c6; }
-.k-no:hover { color: #171614; }
+.k-no { color: #8a857c; }
+.k-no:hover { color: #8a2f1f; }
+
+/* ---- sync ------------------------------------------------------------- */
+
+/* .k-nav a.mono outranks this where both apply */
+.mono {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  overflow-wrap: anywhere;
+}
+.k-status {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #c3bcae;
+  white-space: nowrap;
+}
 
 /* ---- comments ---------------------------------------------------------- */
 
@@ -399,7 +457,7 @@ form { margin: 0; }
 .k-cmt-kids.indent { margin-left: 10px; padding-left: 18px; border-left: 1px solid #eeeae1; }
 .k-reply { margin-top: 10px; }
 .k-reply summary {
-  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #c3bcae;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
   cursor: pointer; list-style: none; display: inline-block;
 }
 .k-reply summary::-webkit-details-marker { display: none; }
@@ -416,17 +474,13 @@ form { margin: 0; }
    class loses to it — its color:inherit and border:none would win */
 .k-say-foot .k-say-send {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #171614;
-  border-bottom: 1px solid #d8d2c6;
 }
-.k-say-foot .k-say-send:hover { border-color: #171614; }
 .k-talk .k-warn { margin: 0 0 10px; }
-.k-cmt-head .k-del { color: #ede9e0; }
-.k-cmt:hover .k-del { color: #ddd7ca; }
+.k-cmt-head .k-del { color: #b3ac9f; font-size: 15px; }
 .k-cmt-head .k-del:hover { color: #8a2f1f; }
 .k-cmt-head .k-ban {
-  color: #ede9e0; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  color: #8a857c; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
 }
-.k-cmt:hover .k-ban { color: #ddd7ca; }
 .k-cmt-head .k-ban:hover { color: #8a2f1f; }
 
 /* ---- comment rules (/keep/comments) ------------------------------------- */
@@ -441,8 +495,18 @@ form { margin: 0; }
   display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap;
   font-family: 'IBM Plex Mono', monospace; font-size: 12px;
 }
+/* an ink rule marks the current option; a faint rule appears under the
+   others on hover, saying "pressable" */
 .k-tiers .k-tier { color: #c3bcae; white-space: nowrap; }
-.k-tiers .k-tier:hover, .k-tiers .k-tier.on { color: #171614; }
+.k-tiers .k-tier:hover {
+  color: #171614; text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+.k-tiers .k-tier.on {
+  color: #171614; cursor: default;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #171614;
+}
 
 /* ---- narrow ----------------------------------------------------------- */
 
@@ -480,7 +544,7 @@ form { margin: 0; }
   .k-row-in .k-re, .k-row-in .k-del { margin-left: 0; }
 
   .k-art-title { font-size: 28px; }
-  .k-meta { flex-wrap: wrap; gap: 8px 16px; }
+  .k-meta-row { gap: 8px 16px; }
   .k-cmt-kids.indent { margin-left: 0; padding-left: 12px; }
   /* 16px, not 12: anything smaller makes iOS zoom the page on focus */
   .k-say-body { font-size: 16px; }
@@ -493,8 +557,6 @@ form { margin: 0; }
 /* no pointer ever hovers here: whatever hover would have revealed must
    already be showing */
 @media (hover: none) {
-  .k-meta { opacity: 1; }
-  .k-del { color: #ddd7ca; }
   .k-reading .k-side { opacity: 1; }
   /* a 13px glyph is not a tap target; grow the hit area, not the glyph.
      padding and margin cancel, so the visual layout does not move */

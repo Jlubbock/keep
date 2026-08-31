@@ -1,4 +1,4 @@
-/-  keep, kt=keep-talk, hark
+/-  keep, kt=keep-talk, ks=keep-sync, hark
 /+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core, kh=keep-hark
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
@@ -283,27 +283,32 @@
     ?-    -.act
     ::
     ::  ---- publishing --------------------------------------------------------
-        %post
-      =/  hash=@uvH      (sham page.act)
+        ?(%post %backpost)
+      =/  [wen=@da =page tit=(unit @t) trm=@t to=(set lyst)]
+        ?-  -.act
+          %post      [now.bowl page.act title.act terms.act to.act]
+          %backpost  [wen.act page.act title.act terms.act to.act]
+        ==
+      =/  hash=@uvH      (sham page)
       =/  lyfe=@ud       our-life:hc
       =/  =id
-        (sain:keep our.bowl lyfe now.bowl terms.act title.act hash)
+        (sain:keep our.bowl lyfe wen trm tit hash)
       =/  hed=head:keep
-        :*  now.bowl  our.bowl  lyfe  terms.act  title.act  hash
+        :*  wen  our.bowl  lyfe  trm  tit  hash
             (sign-id:hc lyfe id)
         ==
-      =/  =item:keep     [hed page.act]
+      =/  =item:keep     [hed page]
       =/  spur=path      (item-spur:hc id)
       =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
-      =^  cards  lists   (fan-out:hc entry ~(tap in to.act))
+      =^  cards  lists   (fan-out:hc entry ~(tap in to))
       =/  grows=(list card)
         :~  [%pass /grow %grow (welp spur /head) noun+hed]
-            [%pass /grow %grow (welp spur /body) noun+page.act]
+            [%pass /grow %grow (welp spur /body) noun+page]
         ==
       =/  new-posts  (~(put by posts) id item)
       =/  url=@t
-        ?.  (~(has in to.act) %public)  ''
-        (site-path:hc title.act)
+        ?.  (~(has in to) %public)  ''
+        (site-path:hc tit)
       ::  id:keep, not id: `=/ =id` above shadows the bare mold here
       =/  new-sites=(map @t id:keep)
         ?:(=('' url) sites (~(put by sites) url id))
@@ -312,7 +317,7 @@
         =/  art=card
           %+  cache:hc  url
           %-  manx-response:gen:srv
-          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page.act ~)
+          (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page ~)
         ~[art (index-card:hc new-sites new-posts) (linkmap-card:hc new-sites)]
       :_  this(posts new-posts, sites new-sites)
       :(weld grows cards web (give:hc [%posted id entry]))
@@ -549,6 +554,12 @@
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
     %-  (slog leaf+"keep: keep-talk refused" u.p.sign)
+    `this
+  ::
+      [%sync ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep: keep-sync refused" u.p.sign)
     `this
   ::
       [%hark ~]
@@ -978,6 +989,40 @@
   ?.  talk-live  ~
   ~[[%pass /talk %agent [our.bowl %keep-talk] %poke %keep-talk-action !>(act)]]
 ::
+++  sync-live
+  ^-  ?
+  .^(? %gu /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/$)
+::
+++  sync-self
+  |=  act=action:ks
+  ^-  (list card)
+  ?.  sync-live  ~
+  ~[[%pass /sync %agent [our.bowl %keep-sync] %poke %keep-sync-action !>(act)]]
+::
+++  sync-rows
+  ^-  (list syncrow:ui)
+  ?.  sync-live  ~
+  =/  m
+    .^  (map @tas sub:ks)  %gx
+    /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/subs/noun
+    ==
+  %+  turn  ~(tap by m)
+  |=  [name=@tas s=sub:ks]
+  ^-  syncrow:ui
+  [name url.s last.s ~(wyt in seen.s) ?=(^ tid.s)]
+::
+++  sync-previews
+  ^-  (list prevrow:ui)
+  ?.  sync-live  ~
+  =/  m
+    .^  (map @tas prev:ks)  %gx
+    /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/previews/noun
+    ==
+  %+  turn  ~(tap by m)
+  |=  [name=@tas p=prev:ks]
+  ^-  prevrow:ui
+  [name url.p got.p fail.p]
+::
 ++  talk-rules
   ^-  (unit [banned=(set ship) tier=rank:title])
   ?.  talk-live  ~
@@ -1312,6 +1357,8 @@
       [%keep %lists @ ~]
     (render rid (lists-page:vw (slaw %tas i.t.t.seg)))
   ::
+      [%keep %sync ~]  (render rid (sync-page:vw sync-rows sync-previews))
+  ::
       [%keep %ship @ ~]
     ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
     (render rid (user-page:vw u.who (user-rows u.who)))
@@ -1358,6 +1405,18 @@
   ?~  q  ''
   ?:  =(key -.i.q)  +.i.q
   $(q t.q)
+::
+::  a typed name coerced toward a term: lowercased, spaces hyphenated.
+::  a leading digit still fails — the input's pattern says so up front
+++  as-term
+  |=  t=@t
+  ^-  (unit @tas)
+  %+  slaw  %tas
+  %-  crip
+  %+  turn  (trip t)
+  |=  c=@tD
+  ?:  &((gte c 'A') (lte c 'Z'))  (add c 32)
+  ?:(=(' ' c) '-' c)
 ::
 ::  rush not stab: stab crashes on anything that is not a path, and this one
 ::  arrives from a form field
@@ -1501,7 +1560,7 @@
     (self [%reject u.f])
   ::
   ?:  =('make' what)
-    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    ?~  nom=(as-term (arg q 'name'))  ~
     ?:  =(%public u.nom)  ~
     (self [%list u.nom ~])
   ::
@@ -1519,6 +1578,30 @@
     ?~  nom=(slaw %tas (arg q 'list'))  ~
     ?:  =(%public u.nom)  ~
     (self [%unlist u.nom])
+  ::
+  ?:  =('sync-scan' what)
+    ?~  nom=(as-term (arg q 'name'))  ~
+    =/  url=@t  (arg q 'url')
+    ?:  =('' url)  ~
+    (sync-self [%preview u.nom url])
+  ::
+  ?:  =('sync-cancel' what)
+    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    (sync-self [%cancel u.nom])
+  ::
+  ?:  =('sync-track' what)
+    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    =/  url=@t  (arg q 'url')
+    ?:  =('' url)  ~
+    (sync-self [%track u.nom url ~h1 '' (sy ~[%public])])
+  ::
+  ?:  =('sync-pull' what)
+    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    (sync-self [%pull u.nom])
+  ::
+  ?:  =('sync-untrack' what)
+    ?~  nom=(slaw %tas (arg q 'name'))  ~
+    (sync-self [%untrack u.nom])
   ~
 ::
 ::  ---- telling the local ship ------------------------------------------------
