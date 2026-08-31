@@ -1,4 +1,4 @@
-/-  keep, kt=keep-talk
+/-  keep, kt=keep-talk, ks=keep-sync
 ::
 |%
 ::
@@ -33,6 +33,21 @@
       who=ship                           ::  who serves it, not who signed it
       id=id:keep
       pub=?                              ::  safe to cite in a public post
+  ==
+::
++$  syncrow                              ::  a tracked publication, as rendered
+  $:  name=@tas
+      url=@t
+      last=@da                           ::  newest imported post_date
+      n=@ud                              ::  posts imported so far
+      busy=?                             ::  a pull is in flight
+  ==
+::
++$  prevrow                              ::  a scan pending, shown, or failed
+  $:  name=@tas
+      url=@t
+      got=(unit scan:ks)
+      fail=?
   ==
 --
 ::
@@ -140,6 +155,7 @@
       ;a(href "/keep/write", class "{(sel %write)}"): write
       ;a(href "/keep/lists", class "{(sel %lists)}"): lists
       ;a(href "/keep/comments", class "{(sel %comments)}"): comments
+      ;a(href "/keep/sync", class "{(sel %sync)}"): sync
     ==
     ;div.k-pals
       ;form(method "post", action "/keep", class "k-one k-find-form")
@@ -159,17 +175,19 @@
 ::
 ++  repost-control
   |=  [r=row back=tape label=tape]
-  ^-  manx
+  ^-  (list manx)
   ?:  |(kept.r =(our.v ship.entry.r))
-    ;span(class "k-re on"): {label}
-  ?.  pub.r
-    ;span(class "k-re"): {label}
+    :_  ~
+    ;span(class "k-re on", title "reposted"): {label}
+  ::  not repostable is not a control: render nothing, not a dead glyph
+  ?.  pub.r  ~
+  :_  ~
   ;form(method "post", action "/keep", style "display:inline")
     ;+  (hidden "what" "repost")
     ;+  (hidden "who" (pp ship.entry.r))
     ;+  (hidden "id" (id-of entry.r))
     ;+  (hidden "back" back)
-    ;button(type "submit", class "k-link k-re"): {label}
+    ;button(type "submit", class "k-link k-re", title "repost"): {label}
   ==
 ::
 ++  edit-control
@@ -188,7 +206,7 @@
     ;+  (hidden "what" "delete")
     ;+  (hidden "id" (id-of entry.r))
     ;+  (hidden "back" back)
-    ;button(type "submit", class "k-link k-del"): {label}
+    ;button(type "submit", class "k-link k-del", title "delete"): {label}
   ==
 ::
 ++  feed-row
@@ -202,7 +220,7 @@
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;a(href "/keep/ship/{(pp (author r))}", class "k-who"): {(pp (author r))}
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
-      ;+  (repost-control r back "↻")
+      ;*  (repost-control r back "↻")
     ==
   ==
 ::
@@ -296,7 +314,7 @@
             ;+  (hidden "id" art-str)
             ;+  (hidden "note" (trip (scot %uv i)))
             ;+  (hidden "back" back)
-            ;button(type "submit", class "k-link k-del"): ×
+            ;button(type "submit", class "k-link k-del", title "delete comment"): ×
           ==
       ;*  ?.  ?&  live
                   =(our.v host)
@@ -423,7 +441,7 @@
                         ;+  (hidden "what" "unban")
                         ;+  (hidden "who" (pp who))
                         ;+  (hidden "back" "/keep/comments")
-                        ;button(type "submit", class "k-link k-x"): ×
+                        ;button(type "submit", class "k-link k-x", title "unban"): ×
                       ==
                     ==
                 ;form(method "post", action "/keep", class "k-one")
@@ -493,7 +511,7 @@
   ^-  manx
   %+  shell  %read
   ;article.k-read
-    ;a(href "/keep", class "k-back"): ←
+    ;a(href "/keep", class "k-back", title "back"): ←
     ;h1.k-art-title: {(titled hed.r)}
     ;*  ?:  =(`%forged okay.r)
           :_  ~
@@ -501,20 +519,33 @@
         ?.  =(`%cold okay.r)  ~
         :_  ~
         ;div.k-warn: ⚠ nothing here shows {(pp (author r))} wrote this — it claims a key life we cannot fetch, so anyone could have served it
+    ::  two deliberate rows, not one accidental wrap: what the post is,
+    ::  then what you can do to it. the url sits last and wraps within
+    ::  itself, so a long address never drags the verbs around.
     ;div.k-meta
-      ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
-      ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
-      ;*  ?:  =(our.v ship.entry.r)  ~
+      ;div.k-meta-row
+        ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
+        ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
+        ;*  (on-tag r "to ")
+        ;*  ?~  site.r  ~
+            :_  ~
+            ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
+      ==
+      ;*  =/  acts=(list manx)
+            ;:  weld
+              ?:  =(our.v ship.entry.r)  ~
+              %^  repost-control  r  (read-url entry.r)
+              ?:(kept.r "↻ reposted" "↻ repost")
+            ::
+              (edit-control r "edit")
+              (delete-control r "/keep/ship/{(pp our.v)}" "delete")
+              ?.(talky ~ (talk-toggle r tlk (read-url entry.r)))
+            ==
+          ?~  acts  ~
           :_  ~
-          %^  repost-control  r  (read-url entry.r)
-          ?:(kept.r "↻ reposted" "↻ repost")
-      ;*  ?~  site.r  ~
-          :_  ~
-          ;a(href "{(trip u.site.r)}", class "k-site"): {(trip u.site.r)}
-      ;*  (on-tag r "to ")
-      ;*  (edit-control r "edit")
-      ;*  (delete-control r "/keep/ship/{(pp our.v)}" "delete")
-      ;*  ?.(talky ~ (talk-toggle r tlk (read-url entry.r)))
+          ;div.k-meta-row
+            ;*  acts
+          ==
     ==
     ;*  ?~  bod  ~
         :_  ~
@@ -543,11 +574,13 @@
     ;body
       ;main.k-solo
         ;article.k-read
-          ;a(href "/keep/index", class "k-back"): ←
+          ;a(href "/keep/index", class "k-back", title "back"): ←
           ;h1.k-art-title: {(titled hed.r)}
           ;div.k-meta
-            ;span: {(pp (author r))}
-            ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
+            ;div.k-meta-row
+              ;span: {(pp (author r))}
+              ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
+            ==
           ==
           ;div(id "k-src", hidden "", data-mark "{(trip p.bod)}"): {?:(?=(@ q.bod) (trip q.bod) "")}
           ;div(id "k-body", class "k-body")
@@ -687,7 +720,7 @@
                           ;+  (hidden "list" nm)
                           ;+  (hidden "who" (pp who))
                           ;+  (hidden "back" "/keep/lists/{nm}")
-                          ;button(type "submit", class "k-link k-x"): ×
+                          ;button(type "submit", class "k-link k-x", title "remove"): ×
                         ==
                       ==
                   ;form(method "post", action "/keep", class "k-one")
@@ -709,7 +742,93 @@
       ;form(method "post", action "/keep", class "k-one")
         ;+  (hidden "what" "make")
         ;+  (hidden "back" "/keep/lists")
-        ;input(type "text", name "name", class "k-new", placeholder "new list", autocomplete "off");
+        ;input(type "text", name "name", class "k-new", placeholder "new list", autocomplete "off", pattern "[A-Za-z][A-Za-z0-9 -]*", title "letters, digits, hyphens — start with a letter");
+      ==
+    ==
+  ==
+::
+++  sync-form
+  |=  [nm=tape what=tape label=tape cls=tape]
+  ^-  manx
+  ;form(method "post", action "/keep", style "display:inline")
+    ;+  (hidden "what" what)
+    ;+  (hidden "name" nm)
+    ;+  (hidden "back" "/keep/sync")
+    ;button(type "submit", class "k-link {cls}"): {label}
+  ==
+::
+++  sync-preview
+  |=  p=prevrow
+  ^-  manx
+  =/  nm=tape  (trip name.p)
+  ;div.k-list
+    ;div.k-list-head
+      ;span.k-list-name: {nm}
+      ;span.mono: {(trip url.p)}
+    ==
+    ;*  ?:  fail.p
+          :~  ;div.k-member
+                ;span: the scan failed — is that a substack url?
+                ;+  (sync-form nm "sync-cancel" "dismiss" "k-del")
+              ==
+          ==
+        ?~  got.p
+          :~  ;div.k-member
+                ;span: scanning the archive — reload for the result
+              ==
+          ==
+        =/  s  u.got.p
+        :~  ;div.k-member
+              ;span: {(a-co:co n.s)} posts · {(a-co:co free.s)} arrive as full text · {(a-co:co paid.s)} paid, teaser only · {(day old.s)} to {(day new.s)}
+            ==
+            ;div.k-member
+              ;span: importing backfills all of it, then checks hourly for new posts, published to everyone
+              ;form(method "post", action "/keep", style "display:inline")
+                ;+  (hidden "what" "sync-track")
+                ;+  (hidden "name" nm)
+                ;+  (hidden "url" (trip url.p))
+                ;+  (hidden "back" "/keep/sync")
+                ;button(type "submit", class "k-link k-yes"): import + sync
+              ==
+              ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
+            ==
+        ==
+  ==
+::
+++  sync-page
+  |=  [rows=(list syncrow) pres=(list prevrow)]
+  ^-  manx
+  %+  shell  %sync
+  ;div.k-col
+    ;div.k-rows
+      ;*  (turn pres sync-preview)
+      ;*  %+  turn  rows
+          |=  r=syncrow
+          =/  nm=tape  (trip name.r)
+          =/  status=tape
+            ?:  busy.r  "pulling now"
+            ?:  =(*@da last.r)  "nothing pulled yet"
+            "last pull {(day last.r)}"
+          ;div.k-list
+            ;div.k-list-head
+              ;span.k-list-name: {nm}
+              ;div.k-count: {(a-co:co n.r)}
+            ==
+            ;div.k-member
+              ;span.mono: {(trip url.r)}
+              ;span.k-status: {status}
+              ;+  (sync-form nm "sync-pull" "pull now" "k-yes")
+              ;+  (sync-form nm "sync-untrack" "untrack" "k-del")
+            ==
+          ==
+    ==
+    ;div.k-new-wrap
+      ;form(method "post", action "/keep", class "k-one")
+        ;+  (hidden "what" "sync-scan")
+        ;+  (hidden "back" "/keep/sync")
+        ;input(type "text", name "name", class "k-new", placeholder "name", autocomplete "off", pattern "[A-Za-z][A-Za-z0-9 -]*", title "letters, digits, hyphens — start with a letter");
+        ;input(type "text", name "url", class "k-new", placeholder "https://example.substack.com", autocomplete "off");
+        ;button(type "submit", class "k-link k-send"): scan
       ==
     ==
   ==

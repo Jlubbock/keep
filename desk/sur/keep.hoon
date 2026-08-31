@@ -32,6 +32,8 @@
 ::
 +$  action
   $%  [%post =page title=(unit @t) terms=@t to=(set lyst)]
+      ::  %post, claiming an earlier wen — for imports that went live elsewhere
+      [%backpost =page title=(unit @t) terms=@t to=(set lyst) wen=@da]
       [%keep =entry to=(set lyst)]
       [%delete =id]
       [%open =entry]
