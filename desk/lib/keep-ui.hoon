@@ -49,6 +49,12 @@
       got=(unit scan:ks)
       fail=?
   ==
+::
++$  subsync                              ::  the email-claim panel
+  $:  enrolled=(unit @t)                 ::  the address this ship claims
+      crew=@ud                           ::  imported subscriber hashes
+      joined=@ud                         ::  members of %subscribers
+  ==
 --
 ::
 |_  v=view
@@ -795,8 +801,52 @@
         ==
   ==
 ::
+++  subscribers-block
+  |=  ss=subsync
+  ^-  manx
+  ;div.k-list
+    ;div.k-list-head
+      ;span.k-list-name: subscribers
+      ;div.k-count: {(a-co:co joined.ss)}
+    ==
+    ;div.k-member
+      ;form(method "post", action "/keep", class "k-one")
+        ;+  (hidden "what" "import")
+        ;+  (hidden "back" "/keep/sync")
+        ;textarea(name "emails", class "k-new", rows "3", placeholder "paste your subscriber csv — addresses never leave this ship, only hashes do");
+        ;button(type "submit", class "k-link k-yes"): import
+      ==
+    ==
+    ;div.k-member
+      ;span: {(a-co:co crew.ss)} imported · a ship claiming one of these addresses joins subscribers and is invited
+    ==
+    ;*  ?~  enrolled.ss
+          :~  ;div.k-member
+                ;form(method "post", action "/keep", class "k-one")
+                  ;+  (hidden "what" "enroll")
+                  ;+  (hidden "back" "/keep/sync")
+                  ;input(type "email", name "email", class "k-new", placeholder "you@example.com", autocomplete "off");
+                  ;button(type "submit", class "k-link k-send"): broadcast
+                ==
+              ==
+              ;div.k-member
+                ;span: a subscriber? broadcast a hash of your email to your pals — a writer who holds it will invite this ship, and the invite is taken up on its own
+              ==
+          ==
+        :~  ;div.k-member
+              ;span.mono: {(trip u.enrolled.ss)}
+              ;span.k-status: broadcasting
+              ;form(method "post", action "/keep", style "display:inline")
+                ;+  (hidden "what" "unenroll")
+                ;+  (hidden "back" "/keep/sync")
+                ;button(type "submit", class "k-link k-del"): forget
+              ==
+            ==
+        ==
+  ==
+::
 ++  sync-page
-  |=  [rows=(list syncrow) pres=(list prevrow)]
+  |=  [rows=(list syncrow) pres=(list prevrow) ss=subsync]
   ^-  manx
   %+  shell  %sync
   ;div.k-col
@@ -821,6 +871,7 @@
               ;+  (sync-form nm "sync-untrack" "untrack" "k-del")
             ==
           ==
+      ;+  (subscribers-block ss)
     ==
     ;div.k-new-wrap
       ;form(method "post", action "/keep", class "k-one")

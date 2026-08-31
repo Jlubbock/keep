@@ -48,7 +48,17 @@
       ::
       [%accept =feed]
       [%reject =feed]
+      ::
+      [%enroll email=@t]               ::  gossip a claim on this address
+      [%unenroll ~]
+      [%import text=@t]                ::  subscriber emails, csv or bare
   ==
+::
+::  ---- network: gossip fact %keep-claim ----------------------------------------
+::
+::  unsalted so every ship derives the same hash from the same address; the
+::  raw email stays with its owner and whoever imported it
++$  claim  [hash=@ux who=ship wen=@da]
 ::
 ::  ---- network: poke %keep-gossip --------------------------------------------
 ::
