@@ -1,4 +1,4 @@
-/-  keep, kt=keep-talk, ks=keep-sync, hark
+/-  keep, kt=keep-talk, ks=keep-sync, km=keep-mail, hark
 /+  default-agent, dbug, srv=server, ui=keep-ui, kc=keep-core, kh=keep-hark
 /*  style-css  %css  /ui/style/css
 /*  app-js     %js   /ui/app/js
@@ -253,6 +253,14 @@
   ::  subs is who we tail, mechanically; follows is whose posts we asked for
     [%x %follows ~]  ``noun+!>(follows)
     [%x %pending ~]  ``noun+!>(pending)
+  ::
+  ::  for %keep-mail: which lists a post of ours fanned to, so the mailer
+  ::  sends %public posts only
+      [%x %audience @ ~]
+    =/  art=id  (slav %uv i.t.t.path)
+    ?.  (~(has by posts) art)  ``noun+!>(*(unit (set lyst)))
+    =/  e=entry  [our.bowl (welp (base:hc first:hc) (item-spur:hc art))]
+    ``noun+!>(`(unit (set lyst))``(fanned:hc e))
   ::
   ::  for %keep-talk: may `who` be handed this article's pointer at all
       [%x %may-read @ @ ~]
@@ -560,6 +568,12 @@
     ?.  ?=(%poke-ack -.sign)  `this
     ?~  p.sign  `this
     %-  (slog leaf+"keep: keep-sync refused" u.p.sign)
+    `this
+  ::
+      [%mail ~]
+    ?.  ?=(%poke-ack -.sign)  `this
+    ?~  p.sign  `this
+    %-  (slog leaf+"keep: keep-mail refused" u.p.sign)
     `this
   ::
       [%hark ~]
@@ -989,6 +1003,51 @@
   ?.  talk-live  ~
   ~[[%pass /talk %agent [our.bowl %keep-talk] %poke %keep-talk-action !>(act)]]
 ::
+++  mail-live
+  ^-  ?
+  .^(? %gu /(scot %p our.bowl)/keep-mail/(scot %da now.bowl)/$)
+::
+++  mail-self
+  |=  act=action:km
+  ^-  (list card)
+  ?.  mail-live  ~
+  ~[[%pass /mail %agent [our.bowl %keep-mail] %poke %keep-mail-action !>(act)]]
+::
+++  mail-status
+  ^-  status:km
+  .^  status:km  %gx
+  /(scot %p our.bowl)/keep-mail/(scot %da now.bowl)/status/noun
+  ==
+::
+::  ~ is "no control at all": foreign, gated, or the mailer is not running
+++  mail-of
+  |=  e=entry
+  ^-  (unit mailv:ui)
+  ?.  =(our.bowl ship.e)  ~
+  ?.  mail-live  ~
+  ?~  i=(slaw %uv (last-of path.e))  ~
+  ?.  (~(has by posts) u.i)  ~
+  ?.  (~(has in (fanned e)) %public)  ~
+  =/  st  mail-status
+  `[set-up.st readers.st (~(get by stat.st) u.i)]
+::
+++  mail-roll
+  ^-  (list [addr:km @da])
+  %+  sort
+    %~  tap  by
+    .^  (map addr:km @da)  %gx
+    /(scot %p our.bowl)/keep-mail/(scot %da now.bowl)/subs/noun
+    ==
+  aor
+::
+++  mailed-now
+  ^-  (map id:keep @da)
+  =/  xs  ~(tap by stat:mail-status)
+  |-  ^-  (map id:keep @da)
+  ?~  xs  ~
+  ?.  ?=(%sent -.q.i.xs)  $(xs t.xs)
+  (~(put by $(xs t.xs)) p.i.xs wen.q.i.xs)
+::
 ++  sync-live
   ^-  ?
   .^(? %gu /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/$)
@@ -1359,9 +1418,21 @@
   ::
       [%keep %sync ~]  (render rid (sync-page:vw sync-rows sync-previews))
   ::
+      [%keep %mail ~]
+    (render rid (mail-page:vw ?.(mail-live ~ `mail-status) ~))
+  ::
+  ::  the full address list, only on request: it can be thousands of rows
+      [%keep %mail %readers ~]
+    ?.  mail-live  (render rid (mail-page:vw ~ ~))
+    (render rid (mail-page:vw `mail-status `mail-roll))
+  ::
       [%keep %ship @ ~]
     ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
-    (render rid (user-page:vw u.who (user-rows u.who)))
+    %+  render  rid
+    %^    user-page:vw
+        u.who
+      (user-rows u.who)
+    ?.(&(=(our.bowl u.who) mail-live) ~ mailed-now)
   ::
       [%keep %read @ @ ~]
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
@@ -1383,7 +1454,7 @@
       ?~  i=(slaw %uv i.t.t.seg)  ~
       (talk-self [%read u.who u.i])
     ::
-      (render rid (read-page:vw (row-of u.who e) bod (talk-view e) talk-live))
+      (render rid (read-page:vw (row-of u.who e) bod (talk-view e) talk-live (mail-of e)))
     ==
   ==
 ::
@@ -1602,6 +1673,20 @@
   ?:  =('sync-untrack' what)
     ?~  nom=(slaw %tas (arg q 'name'))  ~
     (sync-self [%untrack u.nom])
+  ::
+  ?:  =('mail' what)
+    ?~  i=(slaw %uv (arg q 'id'))  ~
+    (mail-self [%send u.i %.n])
+  ::
+  ?:  =('mail-import' what)
+    =/  raw=@t  (arg q 'emails')
+    ?:  =('' raw)  ~
+    (mail-self [%import raw])
+  ::
+  ?:  =('mail-remove' what)
+    =/  a=@t  (arg q 'addr')
+    ?:  =('' a)  ~
+    (mail-self [%remove a])
   ~
 ::
 ::  ---- telling the local ship ------------------------------------------------

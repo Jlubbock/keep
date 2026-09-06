@@ -1047,6 +1047,32 @@
     });
   }
 
+  // ---- mail -------------------------------------------------------------
+
+  function mail() {
+    Array.prototype.slice.call(document.querySelectorAll('form.k-mail-form')).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        var n = f.getAttribute('data-n') || '?';
+        var msg = 'mail this to ' + n + (n === '1' ? ' reader' : ' readers') + '? it cannot be recalled.';
+        if (!window.confirm(msg)) e.preventDefault();
+      });
+    });
+    // the csv never leaves as multipart: read it here, post it as a field
+    var imp = document.querySelector('form.k-mail-import');
+    if (imp) {
+      imp.addEventListener('submit', function (e) {
+        var hid = imp.querySelector('input[name=emails]');
+        var file = imp.querySelector('input[type=file]');
+        if (hid.value) return;
+        e.preventDefault();
+        if (!file || !file.files || !file.files.length) return;
+        var r = new FileReader();
+        r.onload = function () { hid.value = r.result; imp.submit(); };
+        r.readAsText(file.files[0]);
+      });
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     reader();
     talk();
@@ -1055,5 +1081,6 @@
     checker();
     lists();
     deletes();
+    mail();
   });
 })();
