@@ -2,13 +2,17 @@
 ::  otherwise. recipients are imported from a substack csv, on the ship.
 ::
 ::    one POST per recipient, not the relay's 50-a-call batching: the
-::    unsubscribe token is per-address, and a shared body cannot carry it.
+::    relay personalizes the unsubscribe footer and RFC-8058 headers on
+::    single-recipient sends, and a shared body cannot carry those.
 ::
 /-  keep, km=keep-mail
 /+  default-agent, dbug, srv=server, kml=keep-mail, mh=md-html
 |%
 +$  card  card:agent:gall
 +$  addr  addr:km
+::
+::  wait: the largest Retry-After the relay sent this round; 0 is "none"
++$  flite  [waiting=@ud tries=@ud fails=(list addr) wait=@dr]
 ::
 +$  state-0
   $:  %0
@@ -22,12 +26,26 @@
       imported=(unit [added=@ud dropped=@ud])
   ==
 ::
++$  state-1
+  $:  %1
+      config=(unit config:km)
+      subs=(map addr @da)
+      salt=@uvH
+      sent=(map id:keep @da)
+      flight=(map id:keep flite)
+      queue=(list [id=id:keep left=(list addr) tries=@ud])
+      dead=(set id:keep)
+      imported=(unit [added=@ud dropped=@ud])
+  ==
+::
++$  versioned-state  $%(state-0 state-1)
+::
 ++  retry-wait  ~m30
 ++  max-tries   5
 --
 ::
 %-  agent:dbug
-=|  state-0
+=|  state-1
 =*  state  -
 ^-  agent:gall
 =<
@@ -46,7 +64,23 @@
 ++  on-load
   |=  =vase
   ^-  (quip card _this)
-  `this(state !<(state-0 vase))
+  =/  old  !<(versioned-state vase)
+  ?-    -.old
+      %1  `this(state old)
+      %0
+    =/  ff=(map id:keep flite)
+      =/  fs  ~(tap by flight.old)
+      |-  ^-  (map id:keep flite)
+      ?~  fs  ~
+      (~(put by $(fs t.fs)) p.i.fs [waiting.q.i.fs tries.q.i.fs fails.q.i.fs ~s0])
+    :-  ~
+    %=  this
+      state
+        :*  %1  config.old  subs.old  salt.old  sent.old
+            ff  queue.old  dead.old  imported.old
+        ==
+    ==
+  ==
 ::
 ++  on-peek
   |=  =path
@@ -105,7 +139,7 @@
       =/  pay  (payload:hc id.act)
       ?~  pay  ~|(%keep-mail-not-a-public-post !!)
       :_  %=  this
-            flight  (~(put by flight) id.act [(lent `(list addr)`to) 0 ~])
+            flight  (~(put by flight) id.act [(lent `(list addr)`to) 0 ~ ~s0])
             sent    (~(del by sent) id.act)
             dead    (~(del in dead) id.act)
           ==
@@ -161,7 +195,7 @@
       `this(queue nq)
     :_  %=  this
           queue   nq
-          flight  (~(put by flight) i [(lent `(list addr)`live) tries.u.got ~])
+          flight  (~(put by flight) i [(lent `(list addr)`live) tries.u.got ~ ~s0])
         ==
     (turn `(list addr)`live |=(a=addr (send-one:hc u.config i u.pay a)))
   ::
@@ -174,15 +208,22 @@
   ?~  got=(~(get by flight) i)  `this
   =/  code=@ud
     ?:(?=(%finished -.res) status-code.response-header.res 0)
-  ?:  |(=(401 code) =(403 code))
-    ::  the key is wrong or claims another ship: no retry can fix config
-    %-  (slog leaf+"keep-mail: relay refused our key ({(a-co:co code)}) — check config" ~)
-    `this(flight (~(del by flight) i), dead (~(put in dead) i))
-  ::  0 is a %cancel; those, 429 and 5xx retry. 400 names a bad address:
-  ::  drop it. everything else 2xx-ish is done.
-  =/  retryable=?  |(=(0 code) =(429 code) (gte code 500))
+  ::  the relay's contract: 2xx done; 400 is "drop this address forever"
+  ::  (malformed, unsubscribed at the relay, or hard-bounced); 0 (%cancel),
+  ::  429 and 5xx retry. everything else — 401 bad key, 422 systemic —
+  ::  means nothing was delivered and no recipient is at fault: fail hard,
+  ::  never mark a post %sent on it.
+  =/  done=?       &((gte code 200) (lth code 300))
   =/  bad-addr=?   =(400 code)
-  ~?  bad-addr  [%keep-mail-relay-rejected-address a]
+  =/  retryable=?  |(=(0 code) =(429 code) (gte code 500))
+  ?.  |(done bad-addr retryable)
+    %-  (slog leaf+"keep-mail: relay refused ({(a-co:co code)}) — check the key at /keep/mail" ~)
+    `this(flight (~(del by flight) i), dead (~(put in dead) i))
+  ~?  bad-addr  [%keep-mail-relay-dropped-address a]
+  ::  a quota 429 carries Retry-After: seconds to the utc-midnight reset
+  =/  wait=@dr
+    %+  max  wait.u.got
+    ?.(=(429 code) ~s0 (retry-after:hc res))
   =/  fails=(list addr)
     ?:(retryable [a fails.u.got] fails.u.got)
   =/  ss=(map addr @da)
@@ -192,7 +233,7 @@
     :-  ~
     %=  this
       subs    ss
-      flight  (~(put by flight) i u.got(waiting n, fails fails))
+      flight  (~(put by flight) i u.got(waiting n, fails fails, wait wait))
     ==
   ::  the last response landed: settle the post
   ?~  fails
@@ -212,12 +253,13 @@
       flight  (~(del by flight) i)
       dead    (~(put in dead) i)
     ==
+  =/  pause=@dr  ?:(=(~s0 wait) retry-wait (add wait ~m2))
   :_  %=  this
         subs    ss
         flight  (~(del by flight) i)
         queue   [[i fails tries] queue]
       ==
-  ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl retry-wait)]]
+  ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl pause)]]
 ::
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def
@@ -248,6 +290,16 @@
     ?~  xs  m
     (~(put by $(xs t.xs)) p.i.xs [%sending ~])
   [?=(^ config) ?~(config '' key.u.config) ~(wyt by subs) imported m]
+::
+++  retry-after
+  |=  res=client-response:iris
+  ^-  @dr
+  ?.  ?=(%finished -.res)  ~s0
+  ?~  v=(get-header:http 'retry-after' headers.response-header.res)  ~s0
+  ?~  s=(rush u.v dem)  ~s0
+  ::  a day is the longest anything resets on; a bigger claim is a bug
+  ?:  (gth u.s 86.400)  ~d1
+  (mul u.s ~s1)
 ::
 ++  queued
   |=  i=id:keep
@@ -286,25 +338,19 @@
   =/  md=@t  `@t`q.page.u.got
   `[(subject:kml title.head.u.got md) md (convert:mh md)]
 ::
+::  no footer: the relay appends its own unsubscribe footer and RFC-8058
+::  headers per recipient, and strips any /keep-mail/unsubscribe/ link we
+::  send. our endpoint stays alive only for links in already-delivered mail.
 ++  send-one
   |=  [c=config:km i=id:keep pay=[sub=@t txt=@t htm=@t] a=addr]
   ^-  card
-  =/  unsub=@t
-    %+  rap  3
-    ~[site.c '/keep-mail/unsubscribe/' (scot %uv (token:kml a salt))]
   =/  jon=json
     %-  pairs:enjs:format
     :~  ['patp' s+(scot %p our.bowl)]
         ['to' s+a]
         ['subject' s+sub.pay]
-        ['text' s+(rap 3 ~[txt.pay '\0a\0a--\0aunsubscribe: ' unsub '\0a'])]
-        :-  'html'
-        :-  %s
-        %+  rap  3
-        :~  htm.pay
-            '<hr/><p style="font-size:12px;color:#8a857c"><a href="'
-            unsub  '">unsubscribe</a></p>'
-        ==
+        ['text' s+txt.pay]
+        ['html' s+htm.pay]
     ==
   =/  =request:http
     :*  %'POST'

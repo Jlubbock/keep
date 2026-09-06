@@ -58,11 +58,32 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
   body cannot carry it. Quota counts recipients, not calls, so nothing is
   lost. The queue therefore holds *addresses still unsent*, and a 2xx'd
   recipient is never re-sent (there is no idempotency key).
-- Responses: 2xx done · 400 drops that address from subs (the relay named
-  it malformed) · 401/403 kills the send and marks it `%failed` — config
-  is wrong, retry can't help · 429/5xx/%cancel queue the remainder, behn
-  retry in ~m30, give up after 5 tries. A retry re-intersects with current
-  subs, so removals and unsubscribes between tries stick.
+- Responses (per the relay's 2026-09-06 handoff): 2xx done · 400 drops
+  that address from subs forever — it fires for malformed, unsubscribed-
+  at-the-relay, and (coming) hard-bounced addresses, and is the entire
+  suppression sync · 429/5xx/%cancel queue the remainder, behn retry in
+  ~m30 — except a quota 429, whose `Retry-After` (seconds to the UTC-
+  midnight reset, capped at ~d1) sets the timer instead, so one long wait
+  finishes the send · **everything else (401 bad key, 422 systemic, any
+  surprise) hard-fails and is surfaced to the writer** — nothing was
+  delivered and no recipient is at fault, so a post must never read
+  `%sent` off one. Give up after 5 failing rounds. A retry re-intersects
+  with current subs, so removals between tries stick.
+- **No footer**: the relay strips any `/keep-mail/unsubscribe/` footer and
+  appends its own, pointing at `keep-posting.com/unsubscribe/<token>`,
+  with RFC-8058 one-click headers — so the ship sends the bare body. Our
+  `/keep-mail/unsubscribe/[tok]` endpoint stays alive for links in
+  already-delivered mail only. A relay-unsubscribed address comes back as
+  a 400 on the next send naming it; deliberate re-subscribes need the
+  relay's side for now.
+- keep-onboard **acks its config POST by reading the key back off
+  `/keep/mail`** — coordinate with the Earth side before hiding or moving
+  the key on that page. Key rotation is relay-side; the old key's 401
+  hard-stop is the writer's cue to paste the new one.
+- `GET /api/mail/quota` (same bearer key) reports quota/used/remaining —
+  unused by the desk today; a candidate for the mail page later.
+- Size limits (422 past any): subject ≤500 chars (ours caps at 78),
+  text ≤512KB, html ≤1MB.
 - `%send` with `again=%.n` on an already-sent id is a no-op — a stale tab
   re-POSTing the form cannot double-mail. `again=%.y` (dojo-only, on
   purpose) re-mails.
@@ -125,19 +146,19 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
        "patp": "~...", "recipients": 2, "quota_remaining": 190,
        "message_id": "01000..."}
 
-- Errors, all JSON `{"detail": "..."}`:
-  - `401` — missing/unknown key. Config is wrong; stop and surface it.
-  - `403` — key belongs to an unclaimed ship, or `patp` mismatch.
-  - `400` — missing to/subject/text, >50 recipients, or a malformed
-    address (the detail names it). Drop the bad address and retry.
-  - `429` — daily quota spent (**200 recipients per ship per day**, resets
-    midnight UTC). Queue and retry after the reset; `quota_remaining` on
-    successes lets the agent pace itself.
-  - `502` — the upstream mail service refused (detail says why; while the
-    relay's AWS account is in sandbox, unverified recipients do this).
-    Treat as per-batch retryable, bounded.
-- No idempotency key: a retried batch re-sends. Only retry batches that
+- Errors, all JSON `{"detail": "..."}` (revised 2026-09-06):
+  - `400` — drop this recipient, forever: malformed, unsubscribed at the
+    relay, or (coming) hard-bounced. The only per-recipient error.
+  - `422` — request malformed, no recipient at fault (missing field,
+    oversized body). Systemic: hard-fail the send.
+  - `401`/`403` — bad or rotated key, or `patp` mismatch. Hard-fail.
+  - `429` — quota or rate; carries `Retry-After` (seconds to the
+    UTC-midnight reset). **200 recipients per ship per day.**
+  - `502` — SES refused on the relay's end. Retryable, bounded.
+- No idempotency key: a retried batch re-sends. Only retry recipients that
   returned 429/5xx, never 2xx.
+- No per-key call-rate cap: the N-POST-per-send burst is tolerated; SES's
+  per-second rate is the real ceiling and overruns come back as 502.
 
 ## Provisioning (context, not desk work)
 

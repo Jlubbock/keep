@@ -875,6 +875,8 @@
   ;div.k-mail-sec
     ;div.k-rules-head: relay
     ;*  ?:  set-up.s
+          ::  keep-onboard acks its config POST by reading the key back off
+          ::  this page — tell the earth side before hiding or moving it
           :~  ;p.k-mail-lede: Your relay key is set. Mailed posts go out from this ship.
               ;div.k-mail-hint: key: {(trip key.s)}
           ==
