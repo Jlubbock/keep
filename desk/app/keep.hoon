@@ -1687,6 +1687,7 @@
   ::
   ?:  =('mail-remove' what)
     =/  a=@t  (arg q 'addr')
+    =?  a  =('' a)  (arg q 'emails')
     ?:  =('' a)  ~
     (mail-self [%remove a])
   ~

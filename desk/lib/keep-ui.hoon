@@ -949,20 +949,15 @@
   :_  ~
   ;div.k-mail-sec
     ;div.k-rules-head: add or remove a reader
+    ::  enter submits the first button — add
     ;form(method "post", action "/keep", class "k-one k-mail-row")
-      ;+  (hidden "what" "mail-import")
       ;+  (hidden "back" "/keep/mail")
       ;input(type "text", name "emails", class "k-mail-in", placeholder "reader@example.com", autocomplete "off");
-      ;button(type "submit", class "k-link k-mail"): add
+      ;button(type "submit", name "what", value "mail-import", class "k-link k-mail"): add
+      ;*  ?:  =(0 readers.s)  ~
+          :_  ~
+          ;button(type "submit", name "what", value "mail-remove", class "k-link k-mail"): remove
     ==
-    ;*  ?:  =(0 readers.s)  ~
-        :_  ~
-        ;form(method "post", action "/keep", class "k-one k-mail-row")
-          ;+  (hidden "what" "mail-remove")
-          ;+  (hidden "back" "/keep/mail")
-          ;input(type "text", name "addr", class "k-mail-in", placeholder "reader@example.com", autocomplete "off");
-          ;button(type "submit", class "k-link k-mail"): remove
-        ==
   ==
 ::
 ++  sync-page
