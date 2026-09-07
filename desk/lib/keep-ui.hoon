@@ -1,8 +1,11 @@
-/-  keep, kt=keep-talk, ks=keep-sync
+/-  keep, kt=keep-talk, ks=keep-sync, km=keep-mail
 ::
 |%
 ::
 +$  tv  [open=? notes=(list judged:kt)]   ::  a thread as the renderer sees it
+::
+::  mail, as the read page needs it: ~ means render no mail control at all
++$  mailv  [set-up=? readers=@ud ms=(unit mstat:km)]
 ::
 +$  row
   $:  via=ship
@@ -156,6 +159,7 @@
       ;a(href "/keep/lists", class "{(sel %lists)}"): lists
       ;a(href "/keep/comments", class "{(sel %comments)}"): comments
       ;a(href "/keep/sync", class "{(sel %sync)}"): sync
+      ;a(href "/keep/mail", class "{(sel %mail)}"): mail
     ==
     ;div.k-pals
       ;form(method "post", action "/keep", class "k-one k-find-form")
@@ -209,6 +213,49 @@
     ;button(type "submit", class "k-link k-del", title "delete"): {label}
   ==
 ::
+::  mailing is a separate, intentional click — never a reflex of publishing.
+::  done is a fact, not a control; not mailable renders nothing at all
+++  mail-control
+  |=  [r=row mail=(unit mailv) back=tape]
+  ^-  (list manx)
+  ?~  mail  ~
+  ?~  ms.u.mail
+    (mail-verb u.mail (id-of entry.r) back "✉ mail" ~)
+  ?-    -.u.ms.u.mail
+      %sent
+    :_  ~
+    ;span(class "k-mail on", title "mailed"): ✉ mailed {(day wen.u.ms.u.mail)}
+  ::
+      %sending
+    :_  ~
+    ;span.k-mail: ✉ sending…
+  ::
+      %queued
+    :_  ~
+    ;span.k-mail: ✉ retrying
+  ::
+      %failed
+    (mail-verb u.mail (id-of entry.r) back "mail again" `"✉ failed")
+  ==
+::
+++  mail-verb
+  |=  [m=mailv id=tape back=tape label=tape pre=(unit tape)]
+  ^-  (list manx)
+  =/  note=(list manx)
+    ?~  pre  ~
+    :_  ~
+    ;span.k-mail-bad: {u.pre}
+  ?.  &(set-up.m (gth readers.m 0))  note
+  %+  weld  note
+  ^-  (list manx)
+  :_  ~
+  ;form(method "post", action "/keep", class "k-mail-form", style "display:inline", data-n "{(a-co:co readers.m)}")
+    ;+  (hidden "what" "mail")
+    ;+  (hidden "id" id)
+    ;+  (hidden "back" back)
+    ;button(type "submit", class "k-link k-mail", title "mail to readers"): {label}
+  ==
+::
 ++  feed-row
   |=  [r=row back=tape]
   ^-  manx
@@ -225,7 +272,7 @@
   ==
 ::
 ++  user-row
-  |=  [r=row back=tape]
+  |=  [r=row back=tape mailed=(unit @da)]
   ^-  manx
   ;div.k-row
     ;*  ?:  =(via.r ship.entry.r)  ~
@@ -234,6 +281,9 @@
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;*  (on-tag r "")
+      ;*  ?~  mailed  ~
+          :_  ~
+          ;span(class "k-mailed", title "mailed {(day u.mailed)}"): ✉
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
       ;*  (delete-control r back "×")
     ==
@@ -468,7 +518,7 @@
   ==
 ::
 ++  user-page
-  |=  [who=ship rows=(list row)]
+  |=  [who=ship rows=(list row) mailed=(map id:keep @da)]
   ^-  manx
   =/  back=tape  "/keep/ship/{(pp who)}"
   =/  following  (~(has in follows.v) who)
@@ -487,7 +537,11 @@
     ==
     ;div.k-rows
       ;*  %+  turn  rows
-          |=(r=row (user-row r back))
+          |=  r=row
+          =/  mw=(unit @da)
+            ?~  i=(slaw %uv (crip (id-of entry.r)))  ~
+            (~(get by mailed) u.i)
+          (user-row r back mw)
     ==
     ;*  ?:  ?=(^ rows)  ~
         ?:  =(who our.v)  ~
@@ -507,7 +561,7 @@
   ==
 ::
 ++  read-page
-  |=  [r=row bod=(unit page) tlk=(unit tv) talky=?]
+  |=  [r=row bod=(unit page) tlk=(unit tv) talky=? mail=(unit mailv)]
   ^-  manx
   %+  shell  %read
   ;article.k-read
@@ -539,6 +593,7 @@
             ::
               (edit-control r "edit")
               (delete-control r "/keep/ship/{(pp our.v)}" "delete")
+              (mail-control r mail (read-url entry.r))
               ?.(talky ~ (talk-toggle r tlk (read-url entry.r)))
             ==
           ?~  acts  ~
@@ -793,6 +848,116 @@
               ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
             ==
         ==
+  ==
+::
+::  roll is the full address list, rendered ONLY on /keep/mail/readers —
+::  a big list stays off the settings page until the writer asks for it
+++  mail-page
+  |=  [st=(unit status:km) roll=(unit (list [a=addr:km w=@da]))]
+  ^-  manx
+  %+  shell  %mail
+  ;div.k-col
+    ;*  ?^  st  ~
+        :_  ~
+        ;div(class "k-note", data-state "off"): %keep-mail is not running
+    ;*  ?~  st  ~
+        ;:  weld
+          (mail-relay-sec u.st)
+          (mail-readers-sec u.st roll)
+          (mail-one-sec u.st)
+        ==
+  ==
+::
+++  mail-relay-sec
+  |=  s=status:km
+  ^-  (list manx)
+  :_  ~
+  ;div.k-mail-sec
+    ;div.k-rules-head: relay
+    ;*  ?:  set-up.s
+          ::  keep-onboard acks its config POST by reading the key back off
+          ::  this page — tell the earth side before hiding or moving it
+          :~  ;p.k-mail-lede: Your relay key is set. Mailed posts go out from this ship.
+              ;div.k-mail-hint: key: {(trip key.s)}
+          ==
+        :~  ;p.k-mail-lede: No relay key yet. Get one at keep-posting.com, then paste it below — that is the whole setup.
+            ;form(method "post", action "/keep-mail", class "k-one k-mail-row")
+              ;+  (hidden "what" "config")
+              ;+  (hidden "back" "/keep/mail")
+              ;input(type "text", name "key", class "k-mail-in", placeholder "your relay key", autocomplete "off");
+              ;button(type "submit", class "k-link k-mail"): save key
+            ==
+        ==
+  ==
+::
+++  mail-readers-sec
+  |=  [s=status:km roll=(unit (list [a=addr:km w=@da]))]
+  ^-  (list manx)
+  =/  rdrs=tape
+    ?:  =(0 readers.s)
+      "No readers yet — import your list below."
+    ?:  =(1 readers.s)
+      "1 reader gets each post you mail."
+    "{(a-co:co readers.s)} readers get each post you mail."
+  :_  ~
+  ;div.k-mail-sec
+    ;div.k-rules-head: readers
+    ;p.k-mail-lede
+      ;+  ;/("{rdrs} ")
+      ;*  ?:  =(0 readers.s)  ~
+          =/  [href=tape lbl=tape]
+            ?~  roll  ["/keep/mail/readers" "show the list"]
+            ["/keep/mail" "hide the list"]
+          :_  ~
+          ;a(href "{href}", class "k-mail"): {lbl}
+    ==
+    ::  the file becomes an ordinary form field in app.js — eyre
+    ::  sees urlencoded bytes, never multipart
+    ;form(method "post", action "/keep", class "k-one k-mail-import k-mail-row")
+      ;+  (hidden "what" "mail-import")
+      ;+  (hidden "back" "/keep/mail")
+      ;input(type "hidden", name "emails", value "");
+      ;input(type "file", name "csv", class "k-file", accept ".csv,text/csv");
+      ;button(type "submit", class "k-link k-mail"): import
+    ==
+    ;div.k-mail-hint: a substack export csv, or any file of addresses — one per line
+    ;*  ?~  imported.s  ~
+        :_  ~
+        ;div.k-mail-hint: last import: {(a-co:co added.u.imported.s)} added · {(a-co:co dropped.u.imported.s)} lines dropped
+    ;*  ?~  roll  ~
+        :_  ~
+        ;div.k-mail-roll
+          ;*  %+  turn  u.roll
+              |=  [a=addr:km w=@da]
+              ;div.k-member
+                ;span: {(trip a)}
+                ;span.k-date: {(day w)}
+                ;form(method "post", action "/keep", style "display:inline")
+                  ;+  (hidden "what" "mail-remove")
+                  ;+  (hidden "addr" (trip a))
+                  ;+  (hidden "back" "/keep/mail/readers")
+                  ;button(type "submit", class "k-link k-x", title "remove"): ×
+                ==
+              ==
+        ==
+  ==
+::
+::  a single address goes through the same %import sieve as a whole csv
+++  mail-one-sec
+  |=  s=status:km
+  ^-  (list manx)
+  :_  ~
+  ;div.k-mail-sec
+    ;div.k-rules-head: add or remove a reader
+    ::  enter submits the first button — add
+    ;form(method "post", action "/keep", class "k-one k-mail-row")
+      ;+  (hidden "back" "/keep/mail")
+      ;input(type "text", name "emails", class "k-mail-in", placeholder "reader@example.com", autocomplete "off");
+      ;button(type "submit", name "what", value "mail-import", class "k-link k-mail"): add
+      ;*  ?:  =(0 readers.s)  ~
+          :_  ~
+          ;button(type "submit", name "what", value "mail-remove", class "k-link k-mail"): remove
+    ==
   ==
 ::
 ++  sync-page

@@ -150,6 +150,73 @@ form { margin: 0; }
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
 }
 .k-edit:hover { color: #171614; }
+/* mail: the writer's verb sits with edit/delete; the tag is a fact.
+   done goes dark like .k-re.on; failed borrows delete's warning red */
+.k-mail {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+}
+.k-mail.on { color: #171614; cursor: default; }
+/* font restated: button.k-link's `font: inherit` would hand these the
+   16px serif on the mail page, and the verb drifts off the input's line */
+button.k-mail {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+button.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
+.k-mail-bad {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a2f1f;
+}
+.k-mailed {
+  font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #b3ac9f;
+  margin-left: 8px;
+}
+.k-file {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+}
+
+/* ---- mail (/keep/mail) ------------------------------------------------ */
+
+/* a settings page, not a list: labeled sections, sentences in the serif,
+   one action per row. one rhythm throughout — 16px between blocks, no
+   trailing slack, and a divider dark enough to read as one */
+.k-mail-sec { border-bottom: 1px solid #ddd7ca; padding: 30px 0; }
+.k-mail-sec:first-of-type { padding-top: 6px; }
+.k-mail-sec > * { margin: 0 0 20px; }
+.k-mail-sec > :last-child { margin-bottom: 0; }
+/* the label's own 12px pad would stack on the shared 16px gap */
+.k-mail-sec > .k-rules-head { padding-bottom: 0; }
+.k-mail-lede { font-size: 16px; line-height: 1.6; max-width: 52ch; }
+.k-mail-hint {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  overflow-wrap: anywhere;
+}
+.k-mail-hint + .k-mail-hint { margin-top: -8px; }
+.k-mail-row { display: flex; gap: 28px; align-items: baseline; flex-wrap: wrap; }
+/* the file widget's baseline is its "Choose file" label — align on that,
+   never centre: centring floats the verb off the row's text line */
+.k-mail-import { align-items: baseline; }
+/* the link tucked after a sentence wants air from the full stop */
+.k-mail-lede a.k-mail { margin-left: 10px; }
+.k-mail-in {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; border: none;
+  border-bottom: 1px solid #ddd7ca; background: transparent; color: #171614;
+  width: 100%; max-width: 340px; padding: 0 0 6px;
+}
+.k-mail-in:focus { border-color: #171614; }
+/* the verb's rule is drawn like the input's baseline — same size, same
+   6px drop — so the two underlines land on one continuous line */
+.k-mail-row button.k-mail {
+  font-size: 13px; padding: 0 0 6px;
+  text-decoration: none; border-bottom: 1px solid #d8d2c6;
+}
+.k-mail-row button.k-mail:hover { color: #171614; border-color: #171614; }
+a.k-mail {
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
+.k-mail-roll { display: flex; flex-direction: column; gap: 9px; margin-top: 22px; }
 
 /* ---- user feed header ------------------------------------------------- */
 

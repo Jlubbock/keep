@@ -2,6 +2,7 @@
 
     node tests/run.mjs              everything: A, B, C
     node tests/run.mjs pure         one layer (pure | single | multi)
+    node tests/run.mjs multi --only c8-mail.mjs   one scenario
     node tests/run.mjs --list       the manifest
     node tests/bake.mjs             RE-BAKE after any change to desk/ or tests/
 
@@ -55,6 +56,13 @@ at all.
   a linked post arrives titled and judged. The gated invite is never
   accepted, so the direct link is the item's only path — which is what an
   internal link in someone's prose is.
+- `c8-mail` — the mailer's send state machine, with the relay played by an
+  http server inside the scenario on `127.0.0.1:8099`. Chunking, the wire
+  contract, settle-on-all-sent, the `again` guard, `dropped` pruning and
+  `retry` queuing, the 401 hard stop, and the leak guard: a gated post
+  never reaches the relay, controlled by a public one that does. Retries
+  are asserted at the queue; the behn wait is thirty minutes by design.
+  Needs the host only.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
 

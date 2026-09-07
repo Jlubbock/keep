@@ -5,6 +5,7 @@
 //    node tests/run.mjs --list       the manifest
 //    node tests/run.mjs --stale-ok   run against stale goldens anyway
 //    node tests/run.mjs --fresh      re-clone run/ from golden/ first
+//    node tests/run.mjs multi --only c8-mail.mjs   one scenario
 
 import { execSync } from 'node:child_process';
 import * as h from './harness.mjs';
@@ -21,6 +22,8 @@ const SCENARIOS = [
   { file: 'c6-impostor.mjs', ships: [h.HOST, h.PEER], note: 'needs %rogue running on the peer' },
   { file: 'c7-links.mjs', ships: [h.HOST, h.PEER],
     note: 'the gated invite stays unaccepted — the direct link must be the item\'s only path' },
+  { file: 'c8-mail.mjs', ships: [h.HOST],
+    note: 'the relay is a stub in the scenario process on 127.0.0.1:8099' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its
   //  own assertions vacuously true.
@@ -30,7 +33,10 @@ const SCENARIOS = [
 const args = process.argv.slice(2);
 const fresh = args.includes('--fresh');
 const layers = args.filter((a) => !a.startsWith('--'));
+const only = args.find((a) => a.startsWith('--only='))?.slice(7)
+  ?? (args.includes('--only') ? args[args.indexOf('--only') + 1] : null);
 const want = (l) => layers.length === 0 || layers.includes(l);
+if (only) { const i = layers.indexOf(only); if (i >= 0) layers.splice(i, 1); }
 
 if (args.includes('--list')) {
   console.log('A  tests/pure/*.hoon        test arms via mcp/run-tests');
@@ -105,6 +111,7 @@ if (want('pure') || want('single')) {
 if (want('multi')) {
   console.log('\n=== layer C ===');
   for (const sc of SCENARIOS) {
+    if (only && sc.file !== only) continue;
     await h.up(sc.ships, { fresh });
     const t0 = Date.now();
     let code = 0, out = '';

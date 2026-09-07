@@ -139,4 +139,33 @@
   ^-  tang
   =/  es  ~[[~zod /item/0v1] [~zod /item/0v2]]
   (expect-eq !>(es) !>((drop-entry:kc es [~zod /item/0v9])))
+::
+::  ---- same-origin: the csrf gate on every form POST ------------------------
+::
+++  test-origin-match
+  ^-  tang
+  ;:  weld
+    (expect !>((same-origin:kc ~[['host' 'x.y:8080'] ['origin' 'http://x.y:8080']])))
+    (expect !>((same-origin:kc ~[['host' 'X.y'] ['origin' 'https://x.Y']])))
+    (expect !>((same-origin:kc ~[['host' 'x.y'] ['referer' 'https://x.y/keep/mail']])))
+  ==
+::
+++  test-origin-mismatch
+  ^-  tang
+  ;:  weld
+    (expect !>(!(same-origin:kc ~[['host' 'x.y'] ['origin' 'https://evil.z']])))
+    (expect !>(!(same-origin:kc ~[['host' 'x.y'] ['origin' 'null']])))
+    (expect !>(!(same-origin:kc ~[['host' 'x.y:8080'] ['origin' 'http://x.y']])))
+    (expect !>(!(same-origin:kc ~[['host' 'x.y'] ['referer' 'https://evil.z/x.y']])))
+    (expect !>(!(same-origin:kc ~[['origin' 'https://x.y']])))
+  ==
+::
+::  origin wins over referer; no browser header at all is not a browser
+++  test-origin-precedence
+  ^-  tang
+  ;:  weld
+    (expect !>(!(same-origin:kc ~[['host' 'x.y'] ['referer' 'https://x.y/'] ['origin' 'https://evil.z']])))
+    (expect !>((same-origin:kc ~[['host' 'x.y']])))
+    (expect !>((same-origin:kc ~)))
+  ==
 --

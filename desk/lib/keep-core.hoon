@@ -15,6 +15,29 @@
 ::
 ++  base  |=(rev=@ud (base-of %keep rev))
 ::
+::  a browser names its origin (or at least a referer) on every form POST,
+::  and a cross-site one names the wrong host. neither header is not a browser
+++  same-origin
+  |=  hs=header-list:http
+  ^-  ?
+  =/  from=(unit @t)
+    ?^  o=(get-header:http 'origin' hs)  o
+    (get-header:http 'referer' hs)
+  ?~  from  %.y
+  ?~  host=(get-header:http 'host' hs)  %.n
+  =((cass (trip u.host)) (cass (trip (host-of u.from))))
+::
+++  host-of
+  |=  url=@t
+  ^-  @t
+  =/  t  (trip url)
+  =/  s=tape
+    ?:  =("https://" (scag 8 t))  (slag 8 t)
+    ?:  =("http://" (scag 7 t))  (slag 7 t)
+    t
+  =/  i  (find "/" s)
+  (crip ?~(i s (scag u.i s)))
+::
 ++  item-spur  |=(=id:keep ^-(path /item/[(scot %uv id)]))
 ++  talk-spur  |=(art=id:keep ^-(path /talk/[(scot %uv art)]))
 ++  talk-at-spur  |=(art=id:keep ^-(path /talk-at/[(scot %uv art)]))
