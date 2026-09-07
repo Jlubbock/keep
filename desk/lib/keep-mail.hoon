@@ -1,4 +1,4 @@
-::  keep-mail — sieving addresses, tokens, subjects. no bowl, no scry.
+::  keep-mail — sieving addresses, subjects. no bowl, no scry.
 ::
 /-  km=keep-mail
 |%
@@ -95,11 +95,6 @@
     $(hs t.hs, g [i.hs g], s (~(put in s) i.hs))
   $(ls t.ls, good g, seen s)
 ::
-++  token
-  |=  [a=addr:km salt=@uvH]
-  ^-  @uvH
-  (sham [a salt])
-::
 ++  subject
   |=  [title=(unit @t) md=@t]
   ^-  @t
@@ -114,6 +109,38 @@
   ?.  (gth (lent bare) 78)  (crip bare)
   (crip (weld (scag 75 `tape`bare) "..."))
 ::
+::  the relay takes 50 addresses a call and fans out one mail each
+++  batch  50
+::
+++  chunks
+  |=  as=(list addr:km)
+  ^-  (list (list addr:km))
+  ?~  as  ~
+  [(scag batch `(list addr:km)`as) $(as (slag batch `(list addr:km)`as))]
+::
+::  a batch answers 200 with per-recipient lists; ~ is the single-recipient
+::  form, where the status code was the whole verdict
+++  verdicts
+  |=  body=@t
+  ^-  (unit [sent=(list addr:km) dropped=(list addr:km) retry=(list addr:km)])
+  ?~  jon=(de:json:html body)  ~
+  ?.  ?=([%o *] u.jon)  ~
+  ?.  (~(has by p.u.jon) 'sent')  ~
+  =/  addrs
+    |=  key=@t
+    ^-  (list addr:km)
+    ?~  arr=(~(get by p.u.jon) key)  ~
+    ?.  ?=([%a *] u.arr)  ~
+    %+  murn  p.u.arr
+    |=  j=json
+    ^-  (unit addr:km)
+    ?:  ?=([%s *] j)  `p.j
+    ?.  ?=([%o *] j)  ~
+    ?~  t=(~(get by p.j) 'to')  ~
+    ?.  ?=([%s *] u.t)  ~
+    `p.u.t
+  `[(addrs 'sent') (addrs 'dropped') (addrs 'retry')]
+::
 ::  the relay ships with the desk; config carries a url only to override it
 ++  default-relay  'https://keep-posting.com/api/mail/send'
 ::
@@ -121,7 +148,7 @@
   |=  c=config:km
   ^-  config:km
   =?  relay.c  =('' relay.c)  default-relay
-  c(relay (clean-url relay.c), site (clean-url site.c))
+  c(relay (clean-url relay.c))
 ::
 ::  iris parks forever on a scheme-less url: no response, no error
 ++  clean-url

@@ -49,18 +49,6 @@
     (expect !>(!(valid:kml "a@b@x.com")))
   ==
 ::
-::  ---- tokens ----------------------------------------------------------------
-::
-++  test-token-is-salted-sham
-  ^-  tang
-  %+  expect-eq
-    !>((sham ['a@x.com' 0v3]))
-  !>((token:kml 'a@x.com' 0v3))
-::
-++  test-token-differs-by-salt
-  ^-  tang
-  (expect !>(!=((token:kml 'a@x.com' 0v3) (token:kml 'a@x.com' 0v4))))
-::
 ::  ---- subjects --------------------------------------------------------------
 ::
 ++  test-subject-title-wins
@@ -79,6 +67,37 @@
   ^-  tang
   (expect-eq !>('a new post') !>((subject:kml ~ '')))
 ::
+::  ---- batches ---------------------------------------------------------------
+::
+++  test-chunks
+  ^-  tang
+  =/  as=(list @t)  (turn (gulf 1 120) |=(n=@ud (crip "u{(a-co:co n)}@x.com")))
+  ;:  weld
+    (expect-eq !>(~[50 50 20]) !>((turn (chunks:kml as) lent)))
+    (expect-eq !>(`(list (list @t))`~) !>((chunks:kml ~)))
+    (expect-eq !>(`(list (list @t))`~[~['a@x.com']]) !>((chunks:kml ~['a@x.com'])))
+  ==
+::
+++  test-verdicts-batch
+  ^-  tang
+  =/  want=(unit [(list @t) (list @t) (list @t)])
+    `[~['a@x.com' 'b@x.com'] ~['c@x.com'] ~['d@x.com']]
+  =/  body=@t
+    '''
+    {"requested": 4, "sent": ["a@x.com", "b@x.com"],
+     "dropped": [{"to": "c@x.com", "reason": "unsubscribed"}],
+     "retry": [{"to": "d@x.com", "reason": "throttle"}],
+     "quota_remaining": 150, "ok": true}
+    '''
+  (expect-eq !>(want) !>((verdicts:kml body)))
+::
+++  test-verdicts-single-form-is-none
+  ^-  tang
+  ;:  weld
+    (expect-eq !>(*(unit [(list @t) (list @t) (list @t)])) !>((verdicts:kml '{"ok": true, "recipients": 1}')))
+    (expect-eq !>(*(unit [(list @t) (list @t) (list @t)])) !>((verdicts:kml 'not json')))
+  ==
+::
 ::  ---- urls ------------------------------------------------------------------
 ::
 ++  test-clean-url
@@ -87,6 +106,16 @@
     (expect-eq !>('https://example.com') !>((clean-url:kml 'example.com/')))
     (expect-eq !>('https://x.y') !>((clean-url:kml 'https://x.y/')))
     (expect-eq !>('http://127.0.0.1:8090') !>((clean-url:kml 'http://127.0.0.1:8090')))
+  ==
+::
+::  the relay ships with the desk: an empty url means keep-posting.com,
+::  a given one is the override
+++  test-conf-defaults
+  ^-  tang
+  ;:  weld
+    (expect-eq !>(default-relay:kml) !>(relay:(conf-defaults:kml ['' 'k'])))
+    (expect-eq !>('k') !>(key:(conf-defaults:kml ['' 'k'])))
+    (expect-eq !>('https://127.0.0.1:8099/send') !>(relay:(conf-defaults:kml ['127.0.0.1:8099/send' 'k'])))
   ==
 ::
 ::  ---- markdown -> html ------------------------------------------------------

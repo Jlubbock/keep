@@ -1,22 +1,33 @@
 ::  keep-mail — mails a post to the ship's readers, on a click and never
 ::  otherwise. recipients are imported from a substack csv, on the ship.
 ::
-::    one POST per recipient, not the relay's 50-a-call batching: the
-::    relay personalizes the unsubscribe footer and RFC-8058 headers on
-::    single-recipient sends, and a shared body cannot carry those.
+::    one POST per 50 readers: the relay fans out one mail per address,
+::    each with its own unsubscribe footer, and answers with a verdict per
+::    address. a chunk in flight is keyed by its index in the round.
+::    unsubscribes live at the relay and come back in `dropped`.
 ::
 /-  keep, km=keep-mail
-/+  default-agent, dbug, srv=server, kml=keep-mail, mh=md-html
+/+  default-agent, dbug, srv=server, kml=keep-mail, mh=md-html, kc=keep-core
 |%
 +$  card  card:agent:gall
 +$  addr  addr:km
+::  from and site were never read; the relay derives From from the key
++$  config-2  [relay=@t key=@t from=@t site=@t]
 ::
 ::  wait: the largest Retry-After the relay sent this round; 0 is "none"
-+$  flite  [waiting=@ud tries=@ud fails=(list addr) wait=@dr]
++$  flite-1  [waiting=@ud tries=@ud fails=(list addr) wait=@dr]
+::  round: the event that fired the requests; a response from any other is stale
++$  flite
+  $:  round=@da
+      tries=@ud
+      fails=(list addr)
+      wait=@dr
+      open=(map @ud (list addr))         ::  chunks still unanswered
+  ==
 ::
 +$  state-0
   $:  %0
-      config=(unit config:km)
+      config=(unit config-2)
       subs=(map addr @da)
       salt=@uvH                          ::  tokens derive from it; per-ship
       sent=(map id:keep @da)
@@ -28,9 +39,20 @@
 ::
 +$  state-1
   $:  %1
-      config=(unit config:km)
+      config=(unit config-2)
       subs=(map addr @da)
       salt=@uvH
+      sent=(map id:keep @da)
+      flight=(map id:keep flite-1)
+      queue=(list [id=id:keep left=(list addr) tries=@ud])
+      dead=(set id:keep)
+      imported=(unit [added=@ud dropped=@ud])
+  ==
+::
++$  state-2
+  $:  %2
+      config=(unit config-2)
+      subs=(map addr @da)
       sent=(map id:keep @da)
       flight=(map id:keep flite)
       queue=(list [id=id:keep left=(list addr) tries=@ud])
@@ -38,14 +60,25 @@
       imported=(unit [added=@ud dropped=@ud])
   ==
 ::
-+$  versioned-state  $%(state-0 state-1)
++$  state-3
+  $:  %3
+      config=(unit config:km)
+      subs=(map addr @da)
+      sent=(map id:keep @da)
+      flight=(map id:keep flite)
+      queue=(list [id=id:keep left=(list addr) tries=@ud])
+      dead=(set id:keep)
+      imported=(unit [added=@ud dropped=@ud])
+  ==
+::
++$  versioned-state  $%(state-0 state-1 state-2 state-3)
 ::
 ++  retry-wait  ~m30
 ++  max-tries   5
 --
 ::
 %-  agent:dbug
-=|  state-1
+=|  state-3
 =*  state  -
 ^-  agent:gall
 =<
@@ -56,8 +89,7 @@
 ::
 ++  on-init
   ^-  (quip card _this)
-  ::  never bunt a salt: a zero salt makes every unsubscribe token derivable
-  :_  this(salt (sham eny.bowl))
+  :_  this
   ~[[%pass /bind %arvo %e %connect [~ /keep-mail] dap.bowl]]
 ::
 ++  on-save  !>(state)
@@ -65,17 +97,38 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
+  |-
   ?-    -.old
-      %1  `this(state old)
-      %0
-    =/  ff=(map id:keep flite)
-      =/  fs  ~(tap by flight.old)
-      |-  ^-  (map id:keep flite)
-      ?~  fs  ~
-      (~(put by $(fs t.fs)) p.i.fs [waiting.q.i.fs tries.q.i.fs fails.q.i.fs ~s0])
+      %3  `this(state old)
+      %2
     :-  ~
     %=  this
       state
+        :*  %3
+            ?~(config.old ~ `[relay.u.config.old key.u.config.old])
+            subs.old  sent.old  flight.old  queue.old  dead.old  imported.old
+        ==
+    ==
+  ::
+      %1
+    ::  a round in flight answers on the old wire shape and would never settle
+    %=  $
+      old
+        ^-  state-2
+        :*  %2  config.old  subs.old  sent.old
+            ~  queue.old  (~(uni in dead.old) ~(key by flight.old))  imported.old
+        ==
+    ==
+  ::
+      %0
+    =/  ff=(map id:keep flite-1)
+      =/  fs  ~(tap by flight.old)
+      |-  ^-  (map id:keep flite-1)
+      ?~  fs  ~
+      (~(put by $(fs t.fs)) p.i.fs [waiting.q.i.fs tries.q.i.fs fails.q.i.fs ~s0])
+    %=  $
+      old
+        ^-  state-1
         :*  %1  config.old  subs.old  salt.old  sent.old
             ff  queue.old  dead.old  imported.old
         ==
@@ -119,16 +172,6 @@
       =/  a=addr  (crip (lower:kml (trip addr.act)))
       `this(subs (~(del by subs) a))
     ::
-        %unsubscribe
-      =/  hit=(unit addr)
-        =/  as  ~(tap in ~(key by subs))
-        |-  ^-  (unit addr)
-        ?~  as  ~
-        ?:  =(tok.act (token:kml i.as salt))  `i.as
-        $(as t.as)
-      ?~  hit  `this
-      `this(subs (~(del by subs) u.hit))
-    ::
         %send
       ?~  config  ~|(%keep-mail-not-configured !!)
       ?:  &(!again.act (~(has by sent) id.act))  `this
@@ -138,12 +181,13 @@
       ?~  to  ~|(%keep-mail-no-readers !!)
       =/  pay  (payload:hc id.act)
       ?~  pay  ~|(%keep-mail-not-a-public-post !!)
+      =/  open  (opened:hc to)
       :_  %=  this
-            flight  (~(put by flight) id.act [(lent `(list addr)`to) 0 ~ ~s0])
+            flight  (~(put by flight) id.act [now.bowl 0 ~ ~s0 open])
             sent    (~(del by sent) id.act)
             dead    (~(del in dead) id.act)
           ==
-      (turn `(list addr)`to |=(a=addr (send-one:hc u.config id.act u.pay a)))
+      (fire:hc u.config id.act now.bowl u.pay open)
     ==
   ::
       %handle-http-request
@@ -155,8 +199,8 @@
 ++  on-watch
   |=  =path
   ^-  (quip card _this)
-  ::  eyre watches as its GUEST identity for a cookie-less request, and the
-  ::  unsubscribe link arrives with no session: gate on the path, not on src
+  ::  eyre watches as its GUEST identity for a cookie-less request — even
+  ::  the login redirect rides that watch: gate on the path, not on src
   ?:  ?=([%http-response *] path)  `this
   ?>  =(our.bowl src.bowl)
   (on-watch:def path)
@@ -193,72 +237,64 @@
     ?~  pay
       %-  (slog leaf+"keep-mail: post gone; dropping its mail retry" ~)
       `this(queue nq)
+    =/  open  (opened:hc live)
     :_  %=  this
           queue   nq
-          flight  (~(put by flight) i [(lent `(list addr)`live) tries.u.got ~ ~s0])
+          flight  (~(put by flight) i [now.bowl tries.u.got ~ ~s0 open])
         ==
-    (turn `(list addr)`live |=(a=addr (send-one:hc u.config i u.pay a)))
+    (fire:hc u.config i now.bowl u.pay open)
   ::
   ?.  ?=([%iris %http-response *] sign-arvo)  (on-arvo:def wire sign-arvo)
-  ?.  ?=([%send @ @ ~] wire)  `this
-  =/  i=id:keep  (slav %uv i.t.wire)
-  =/  a=addr     `@t`(slav %uv i.t.t.wire)
+  ?.  ?=([%send @ @ @ ~] wire)  `this
+  =/  i=id:keep   (slav %uv i.t.wire)
+  =/  round=@da   (slav %da i.t.t.wire)
+  =/  k=@ud       (slav %ud i.t.t.t.wire)
   =/  res  client-response.sign-arvo
   ?:  ?=(%progress -.res)  `this
-  ?~  got=(~(get by flight) i)  `this
   =/  code=@ud
     ?:(?=(%finished -.res) status-code.response-header.res 0)
-  ::  the relay's contract: 2xx done; 400 is "drop this address forever"
-  ::  (malformed, unsubscribed at the relay, or hard-bounced); 0 (%cancel),
-  ::  429 and 5xx retry. everything else — 401 bad key, 422 systemic —
-  ::  means nothing was delivered and no recipient is at fault: fail hard,
-  ::  never mark a post %sent on it.
+  ::  the relay's contract: a batch is 200 with per-recipient verdicts; 0
+  ::  (%cancel), 429 and 5xx retry the whole call. everything else — 401
+  ::  bad key, 422 systemic — means nothing was delivered and no recipient
+  ::  is at fault: fail hard, never mark a post %sent on it.
   =/  done=?       &((gte code 200) (lth code 300))
-  =/  bad-addr=?   =(400 code)
   =/  retryable=?  |(=(0 code) =(429 code) (gte code 500))
-  ?.  |(done bad-addr retryable)
+  =/  ver=(unit [sent=(list addr) dropped=(list addr) retry=(list addr)])
+    ?.  &(done ?=(%finished -.res))  ~
+    ?~  full-file.res  ~
+    (verdicts:kml q.data.u.full-file.res)
+  ::  a stale round's verdict on an address still stands; on the post it does not
+  =/  dropped=(list addr)  ?~(ver ~ dropped.u.ver)
+  =.  subs  (prune:hc dropped)
+  ?~  got=(~(get by flight) i)  `this
+  ?.  =(round round.u.got)  `this
+  ?~  chunk=(~(get by open.u.got) k)  `this
+  ?.  |(done retryable)
     %-  (slog leaf+"keep-mail: relay refused ({(a-co:co code)}) — check the key at /keep/mail" ~)
     `this(flight (~(del by flight) i), dead (~(put in dead) i))
-  ~?  bad-addr  [%keep-mail-relay-dropped-address a]
+  ~?  ?=(^ dropped)  [%keep-mail-relay-dropped dropped]
   ::  a quota 429 carries Retry-After: seconds to the utc-midnight reset
   =/  wait=@dr
     %+  max  wait.u.got
     ?.(=(429 code) ~s0 (retry-after:hc res))
-  =/  fails=(list addr)
-    ?:(retryable [a fails.u.got] fails.u.got)
-  =/  ss=(map addr @da)
-    ?.(bad-addr subs (~(del by subs) a))
-  =/  n=@ud  (dec waiting.u.got)
-  ?.  =(0 n)
-    :-  ~
-    %=  this
-      subs    ss
-      flight  (~(put by flight) i u.got(waiting n, fails fails, wait wait))
-    ==
-  ::  the last response landed: settle the post
+  =/  retry=(list addr)
+    ?:  retryable  u.chunk
+    ?~  ver  ~
+    retry.u.ver
+  =/  fails=(list addr)  (weld retry fails.u.got)
+  =/  open  (~(del by open.u.got) k)
+  ?.  =(~ open)
+    `this(flight (~(put by flight) i u.got(fails fails, wait wait, open open)))
+  ::  the last call landed: settle the post
   ?~  fails
-    :-  ~
-    %=  this
-      subs    ss
-      flight  (~(del by flight) i)
-      sent    (~(put by sent) i now.bowl)
-    ==
+    `this(flight (~(del by flight) i), sent (~(put by sent) i now.bowl))
   =/  tries=@ud  +(tries.u.got)
   ?:  (gte tries max-tries)
     =/  lost  (lent `(list addr)`fails)
     %-  (slog leaf+"keep-mail: giving up on {(scow %uv i)}: {(a-co:co lost)} unreached after {(a-co:co tries)} tries" ~)
-    :-  ~
-    %=  this
-      subs    ss
-      flight  (~(del by flight) i)
-      dead    (~(put in dead) i)
-    ==
+    `this(flight (~(del by flight) i), dead (~(put in dead) i))
   =/  pause=@dr  ?:(=(~s0 wait) retry-wait (add wait ~m2))
-  :_  %=  this
-        subs    ss
-        flight  (~(del by flight) i)
-        queue   [[i fails tries] queue]
-      ==
+  :_  this(flight (~(del by flight) i), queue [[i fails tries] queue])
   ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl pause)]]
 ::
 ++  on-leave  on-leave:def
@@ -290,6 +326,29 @@
     ?~  xs  m
     (~(put by $(xs t.xs)) p.i.xs [%sending ~])
   [?=(^ config) ?~(config '' key.u.config) ~(wyt by subs) imported m]
+::
+++  opened
+  |=  as=(list addr)
+  ^-  (map @ud (list addr))
+  =/  cs  (chunks:kml as)
+  =|  k=@ud
+  |-  ^-  (map @ud (list addr))
+  ?~  cs  ~
+  (~(put by $(cs t.cs, k +(k))) k i.cs)
+::
+++  fire
+  |=  [c=config:km i=id:keep round=@da pay=[sub=@t txt=@t htm=@t] open=(map @ud (list addr))]
+  ^-  (list card)
+  %+  turn  ~(tap by open)
+  |=([k=@ud as=(list addr)] (send-one c i round k pay as))
+::
+++  prune
+  |=  as=(list addr)
+  ^-  (map addr @da)
+  =/  m  subs
+  |-  ^-  (map addr @da)
+  ?~  as  m
+  $(as t.as, m (~(del by m) i.as))
 ::
 ++  retry-after
   |=  res=client-response:iris
@@ -339,15 +398,14 @@
   `[(subject:kml title.head.u.got md) md (convert:mh md)]
 ::
 ::  no footer: the relay appends its own unsubscribe footer and RFC-8058
-::  headers per recipient, and strips any /keep-mail/unsubscribe/ link we
-::  send. our endpoint stays alive only for links in already-delivered mail.
+::  headers per recipient
 ++  send-one
-  |=  [c=config:km i=id:keep pay=[sub=@t txt=@t htm=@t] a=addr]
+  |=  [c=config:km i=id:keep round=@da k=@ud pay=[sub=@t txt=@t htm=@t] to=(list addr)]
   ^-  card
   =/  jon=json
     %-  pairs:enjs:format
     :~  ['patp' s+(scot %p our.bowl)]
-        ['to' s+a]
+        ['to' a+(turn to |=(a=addr ^-(json s+a)))]
         ['subject' s+sub.pay]
         ['text' s+txt.pay]
         ['html' s+htm.pay]
@@ -361,7 +419,7 @@
         `(as-octs:mimes:html (en:json:html jon))
     ==
   :^    %pass
-      /send/(scot %uv i)/(scot %uv `@uv`a)
+      /send/(scot %uv i)/(scot %da round)/(scot %ud k)
     %arvo
   [%i %request request *outbound-config:iris]
 ::
@@ -371,38 +429,23 @@
   |=  [rid=@ta ir=inbound-request:eyre]
   ^-  (list card)
   =*  req  request.ir
-  =/  =pork:eyre
-    (rash url.req ;~(sfix apat:de-purl:html yquy:de-purl:html))
-  =/  seg=path  q.pork
-  ?:  ?=([%keep-mail %unsubscribe @ ~] seg)
-    ::  eyre split the token's last dot into pork's ext; put it back
-    =/  raw=@t
-      ?~  p.pork  i.t.t.seg
-      (rap 3 ~[i.t.t.seg '.' u.p.pork])
-    ::  one page whether or not the token matched: tokens are not probes
-    %+  weld
-      ?~  tok=(slaw %uv raw)  ~
-      ~[(poke-self [%unsubscribe u.tok])]
-    (paint rid (manx-response:gen:srv unsub-page))
   ?.  authenticated.ir
     (paint rid (login-redirect:gen:srv req))
   ?.  =('POST' method.req)
     (paint rid not-found:gen:srv)
+  ?.  (same-origin:kc header-list.req)
+    (paint rid [[403 ~] ~])
   =/  q=(list [@t @t])
     ?~  body.req  ~
     =/  got  (rush q.u.body.req yquy:de-purl:html)
     ?~(got ~ u.got)
   ?.  =('config' (arg q 'what'))
     (paint rid not-found:gen:srv)
-  ::  only the key is required: the relay is baked in, and the footer's
-  ::  base url can come from where the writer is browsing right now
-  =/  site=@t
-    =/  given  (arg q 'site')
-    ?.  =('' given)  given
-    ?~  host=(get-header:http 'host' header-list.req)  ''
-    (cat 3 ?:(secure.ir 'https://' 'http://') u.host)
+  ::  the form takes the key only: a forged POST must not be able to
+  ::  repoint the relay. relay is set from the dojo, and survives
   =/  c=config:km
-    [(arg q 'relay') (arg q 'key') (arg q 'from') site]
+    =/  old=config:km  ?~(config *config:km u.config)
+    old(key (arg q 'key'))
   ?:  =('' key.c)
     (paint rid [[400 ~] ~])
   %+  weld  ~[(poke-self [%config c])]
@@ -410,19 +453,6 @@
   ?:  =('' back)  (paint rid [[200 ~] ~])
   ::  303 not 307: 307 preserves the method and re-POSTs the form on refresh
   (paint rid [[303 ['location' back]~] ~])
-::
-++  unsub-page
-  ^-  manx
-  ;html
-    ;head
-      ;title: unsubscribed
-      ;meta(charset "utf-8");
-      ;meta(name "viewport", content "width=device-width, initial-scale=1");
-    ==
-    ;body(style "font-family:Georgia,serif;background:#fbfaf8;color:#171614;padding:64px 24px")
-      ;p(style "max-width:52ch;margin:0 auto"): you're unsubscribed — this address gets no more posts from this ship.
-    ==
-  ==
 ::
 ++  paint
   |=  [rid=@ta pay=simple-payload:http]

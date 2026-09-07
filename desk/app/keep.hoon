@@ -1374,7 +1374,9 @@
   =*  req  request.ir
   ?.  authenticated.ir
     (paint rid (login-redirect:gen:srv req))
-  ?:  =('POST' method.req)  (writes rid req)
+  ?:  =('POST' method.req)
+    ?.  (same-origin:kc header-list.req)  (paint rid [[403 ~] ~])
+    (writes rid req)
   =/  =pork:eyre
     (rash url.req ;~(sfix apat:de-purl:html yquy:de-purl:html))
   =/  ext=(unit @ta)  -.pork

@@ -83,10 +83,10 @@ for (const s of ships) {
 
   //  a baseline nobody can build is worse than none: the staleness guard would
   //  then certify it as fresh.
-  for (const p of ['/app/keep/hoon', '/app/keep-talk/hoon', '/app/rogue/hoon',
-                   '/lib/keep-core/hoon', '/ted/b-jael/hoon',
+  for (const p of ['/app/keep/hoon', '/app/keep-talk/hoon', '/app/keep-mail/hoon', '/app/rogue/hoon',
+                   '/lib/keep-core/hoon', '/lib/keep-mail/hoon', '/ted/b-jael/hoon',
                    '/tests/pure/sain/hoon', '/tests/pure/view/hoon', '/tests/pure/core/hoon',
-                   '/tests/pure/talk/hoon']) {
+                   '/tests/pure/talk/hoon', '/tests/pure/mail/hoon']) {
     try { await m.call('mcp/test-build', { desk: h.DESK, path: p }); console.log(`  ok   ${p}`); }
     catch (e) { console.log(`  FAIL ${p}: ${e.message.slice(0, 120)}`); bad++; }
   }

@@ -12,35 +12,34 @@ where it differs from the original sketch, the difference is called out.
 
 - `desk/sur/keep-mail.hoon` — types
 - `desk/app/keep-mail.hoon` — the agent
-- `desk/lib/keep-mail.hoon` — csv sieve, tokens, subjects (pure; layer-A tested)
+- `desk/lib/keep-mail.hoon` — csv sieve, subjects (pure; layer-A tested)
 - `desk/lib/md-html.hoon` — the tame markdown subset into html, for bodies
 - `desk/mar/keep-mail-action.hoon` — noun mark, desk convention
 - `desk/desk.bill` — `%keep-mail` added
 - `%keep`: one `on-peek` arm `[%x %audience @uv ~]` → `(unit (set lyst))`,
   plus the UI below
-- `tests/pure/mail.hoon` — sieve/token/subject/renderer arms
+- `tests/pure/mail.hoon` — sieve/subject/renderer arms
+- `tests/multi/c8-mail.mjs` — the send state machine against a relay stub
 
 ## Types
 
     +$  addr    @t                        ::  lowercased email address
-    +$  config  [relay=@t key=@t from=@t site=@t]
+    +$  config  [relay=@t key=@t]
 
 The relay url is BAKED INTO THE DESK (`default-relay` in /lib/keep-mail):
 a config with `relay=''` means keep-posting.com. Only the key is required;
-an explicit relay is an override (which is how the test stub drives it).
+an explicit relay is an override (which is how `c8-mail` points the ship
+at its stub). `from` and `site` are gone (2026-09-07): the relay derives
+From from the key, and the footer `site` was for no longer exists.
     +$  action
       $%  [%config =config]
           [%import raw=@t]                ::  a substack csv, or bare addresses
           [%remove =addr]
-          [%unsubscribe tok=@uvH]         ::  footer links land here
           [%send =id:keep again=?]        ::  the click
       ==
 
-    state: config=(unit config), subs=(map addr @da), salt=@uvH,
+    state: config=(unit config), subs=(map addr @da),
            sent=(map id:keep @da), flight, queue, dead, imported
-
-`site` was added to the sketch's config: the unsubscribe footer needs an
-absolute URL for the ship's own eyre, and nothing else in state knows it.
 
 ## Behavior
 
@@ -53,29 +52,31 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
   an Earth list is a leak) and `/posts` for the item. Subject from `title`,
   falling back to the first line; text = the `%md` page; html via
   `/lib/md-html`; unsubscribe footer per recipient.
-- **One POST per recipient, not the relay's 50-a-call batching.** The
-  unsubscribe token is per-address (`(sham [addr salt])`) and a shared
-  body cannot carry it. Quota counts recipients, not calls, so nothing is
-  lost. The queue therefore holds *addresses still unsent*, and a 2xx'd
-  recipient is never re-sent (there is no idempotency key).
-- Responses (per the relay's 2026-09-06 handoff): 2xx done · 400 drops
-  that address from subs forever — it fires for malformed, unsubscribed-
-  at-the-relay, and (coming) hard-bounced addresses, and is the entire
-  suppression sync · 429/5xx/%cancel queue the remainder, behn retry in
-  ~m30 — except a quota 429, whose `Retry-After` (seconds to the UTC-
-  midnight reset, capped at ~d1) sets the timer instead, so one long wait
-  finishes the send · **everything else (401 bad key, 422 systemic, any
-  surprise) hard-fails and is surfaced to the writer** — nothing was
-  delivered and no recipient is at fault, so a post must never read
-  `%sent` off one. Give up after 5 failing rounds. A retry re-intersects
-  with current subs, so removals between tries stick.
-- **No footer**: the relay strips any `/keep-mail/unsubscribe/` footer and
-  appends its own, pointing at `keep-posting.com/unsubscribe/<token>`,
-  with RFC-8058 one-click headers — so the ship sends the bare body. Our
-  `/keep-mail/unsubscribe/[tok]` endpoint stays alive for links in
-  already-delivered mail only. A relay-unsubscribed address comes back as
-  a 400 on the next send naming it; deliberate re-subscribes need the
-  relay's side for now.
+- **One POST per 50 readers** (batched 2026-09-07; the relay fans out one
+  personalized mail per address and answers with a verdict per address).
+  A round stamps its event time into the flight and into every wire, so a
+  response from an earlier round cannot touch the post's accounting — it
+  can only still prune an address the relay dropped. The queue holds
+  *addresses still unsent*; a `sent` address is never re-sent.
+- Responses: a batch is 200 with `sent` / `dropped` / `retry` lists —
+  `dropped` leaves subs forever (malformed, unsubscribed at the relay,
+  hard-bounced: the entire suppression sync), `retry` joins the queue ·
+  429/5xx/%cancel queue the whole call, behn retry in ~m30 — except a
+  quota 429, whose `Retry-After` (seconds to the UTC-midnight reset, capped
+  at ~d1) sets the timer instead · **everything else (400, 401 bad key,
+  422 systemic, any surprise) hard-fails and is surfaced to the writer** —
+  nothing was delivered and no recipient is at fault, so a post must never
+  read `%sent` off one. Give up after 5 failing rounds. A retry
+  re-intersects with current subs, so removals between tries stick.
+- **No unsubscribe on the ship, at all** (removed 2026-09-07). The relay
+  appends its own footer pointing at `keep-posting.com/unsubscribe/<token>`
+  with RFC-8058 one-click headers, so the ship sends the bare body. The
+  ship's old `/keep-mail/unsubscribe/[tok]` endpoint, `%unsubscribe`
+  action, token arm and `salt` are gone: an unauthenticated GET that walked
+  every subscriber hashing each one was a CPU sink anyone could hit, and
+  no mail ever carried its link. A relay-unsubscribed address comes back
+  in `dropped` on the next batch naming it, which prunes it here;
+  deliberate re-subscribes need the relay's side for now.
 - keep-onboard **acks its config POST by reading the key back off
   `/keep/mail`** — coordinate with the Earth side before hiding or moving
   the key on that page. Key rotation is relay-side; the old key's 401
@@ -91,9 +92,18 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
   lowercase, keep every cell that reads as an address. One parser covers
   the Substack CSV, a bare list, and a comma paste; the header line is
   skipped silently, junk lines are counted and reported.
-- Eyre at `/keep-mail`: `GET /keep-mail/unsubscribe/[tok]` is
-  unauthenticated and always serves the same page (tokens are not probes);
-  authenticated `POST what=config` is keep-onboard's provisioning hook.
+- Eyre at `/keep-mail`: nothing is served unauthenticated; the single
+  route is `POST what=config`, keep-onboard's provisioning hook.
+  It takes `key` ONLY: a forged cross-site POST must not be able to
+  repoint the relay at an address collector. `relay` is set from the dojo
+  and survives a key re-POST:
+  `:keep-mail &keep-mail-action [%config [relay key]]`.
+  Every form POST on the desk (`/keep` and `/keep-mail`) also passes
+  `same-origin` in /lib/keep-core: eyre's cookie carries no `SameSite`
+  (measured 2026-09-07: `Path=/; Max-Age=2592000`, nothing else), so
+  Firefox and Safari would send it on a cross-site form. A browser header
+  (`origin`, else `referer`) naming another host is a 403; no browser
+  header at all is not a browser, and keep-onboard's POST still lands.
   Peeks: `/x/status` (what the UI renders), `/x/subs`, `/x/sent`,
   `/x/queue`, `/x/config`. The key is readable on purpose — shown on
   `/keep/mail` too. A leaked key gets revoked at the relay, not hidden
@@ -118,8 +128,7 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
   page.
 - Unconfigured, the page says "get one at keep-posting.com, then paste it
   here" with a key input POSTing straight to `/keep-mail`. The relay
-  defaults; `site` defaults to the Host header the writer is browsing on
-  (scheme from eyre's `secure`), so pasting a key is the whole setup.
+  defaults, so pasting a key is the whole setup.
 
 ## The relay contract (this is live today)
 
@@ -129,7 +138,7 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
 
     {
       "patp":    "~santyv-lapryt-pasreg-danduc--diflup-socsec-witdus-binzod",
-      "to":      ["reader@example.com", ...],    // string or list, max 50
+      "to":      ["reader@example.com", ...],    // always a list here, max 50
       "subject": "Post title",
       "text":    "plain-text body",              // required
       "html":    "<div>...</div>"                // optional
@@ -140,32 +149,43 @@ absolute URL for the ship's own eyre, and nothing else in state knows it.
 - The **From address is derived server-side** from the key
   (`~full-patp <post@<the ship's email domain>>`). The ship cannot set
   From; do not include one.
-- Success `200`:
+- A batch (a `to` list) answers `200` once processed, with per-recipient
+  verdicts (relay handoff 2026-09-07):
+
+      {"requested": 50, "sent": [...],
+       "dropped": [{"to": "...", "reason": "invalid" | "unsubscribed"}, ...],
+       "retry":   [{"to": "...", "reason": "..."}, ...],
+       "quota_remaining": 150, "ok": true}
+
+  Quota is checked up front against the sendable count (dropped cost
+  nothing); over-quota is still a whole-call 429 with `Retry-After`.
+  The single-recipient form (`to` a string) still answers as before:
 
       {"ok": true, "from": "~... <post@name.keep-posting.com>",
-       "patp": "~...", "recipients": 2, "quota_remaining": 190,
+       "patp": "~...", "recipients": 1, "quota_remaining": 190,
        "message_id": "01000..."}
 
-- Errors, all JSON `{"detail": "..."}` (revised 2026-09-06):
-  - `400` — drop this recipient, forever: malformed, unsubscribed at the
-    relay, or (coming) hard-bounced. The only per-recipient error.
+- Errors, all JSON `{"detail": "..."}` (revised 2026-09-07):
   - `422` — request malformed, no recipient at fault (missing field,
-    oversized body). Systemic: hard-fail the send.
+    oversized body, over 50 addresses). Systemic: hard-fail the send.
+    The 50 is the relay's `MAX_RECIPIENTS` and `batch` in /lib/keep-mail;
+    `GET /api/mail/quota` reports it as `max_recipients`.
   - `401`/`403` — bad or rotated key, or `patp` mismatch. Hard-fail.
   - `429` — quota or rate; carries `Retry-After` (seconds to the
     UTC-midnight reset). **200 recipients per ship per day.**
   - `502` — SES refused on the relay's end. Retryable, bounded.
 - No idempotency key: a retried batch re-sends. Only retry recipients that
   returned 429/5xx, never 2xx.
-- No per-key call-rate cap: the N-POST-per-send burst is tolerated; SES's
-  per-second rate is the real ceiling and overruns come back as 502.
+- No per-key call-rate cap; a 300-reader send is 6 calls. SES throttling
+  on the relay's side comes back per address in `retry`.
 
 ## Provisioning (context, not desk work)
 
 Earth already holds a per-ship key and domain. After the desk installs,
-keep-onboard logs in with `+code` and POSTs `what=config` to `/keep-mail`
-with the key (relay is baked in; `from` and `site` optional — site falls
-back to the request host) — and re-POSTs it if the writer renames their
-domain. Or the writer skips onboard entirely and pastes the key at
-`/keep/mail`. **The CSV import is not keep-onboard's job**: the writer
-uploads it themselves at `/keep/mail`.
+keep-onboard logs in with `+code`, learns the ship's real name off the
+authenticated `/~/name`, and POSTs `what=config&key=` to `/keep-mail`
+(relay is baked in; nothing else is a form field). A domain rename is
+relay-side only (From derives from the key) and does not touch the ship.
+Or the writer skips onboard entirely and pastes the key at `/keep/mail`.
+**The CSV import is not keep-onboard's job**: the writer uploads it
+themselves at `/keep/mail`.

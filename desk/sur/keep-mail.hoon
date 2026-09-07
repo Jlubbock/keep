@@ -11,8 +11,6 @@
 +$  config
   $:  relay=@t                           ::  the send endpoint, scheme and all
       key=@t                             ::  bearer key for the relay
-      from=@t                            ::  the ship's email domain, display only
-      site=@t                            ::  where this ship's eyre lives, for footer links
   ==
 ::
 +$  mstat                                ::  one post, as the mailer knows it
@@ -36,7 +34,6 @@
   $%  [%config =config]
       [%import raw=@t]                   ::  a substack csv, or bare addresses
       [%remove =addr]
-      [%unsubscribe tok=@uvH]            ::  footer links land here
       [%send =id:keep again=?]           ::  the click; again re-mails a sent id
   ==
 --
