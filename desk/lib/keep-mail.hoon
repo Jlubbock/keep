@@ -1,4 +1,5 @@
-::  keep-mail — sieving addresses, subjects. no bowl, no scry.
+::  keep-mail — sieving addresses, subjects, the relay's urls and answers.
+::  no bowl, no scry.
 ::
 /-  km=keep-mail
 |%
@@ -109,40 +110,10 @@
   ?.  (gth (lent bare) 78)  (crip bare)
   (crip (weld (scag 75 `tape`bare) "..."))
 ::
-::  the relay takes 50 addresses a call and fans out one mail each
-++  batch  50
-::
-++  chunks
-  |=  as=(list addr:km)
-  ^-  (list (list addr:km))
-  ?~  as  ~
-  [(scag batch `(list addr:km)`as) $(as (slag batch `(list addr:km)`as))]
-::
-::  a batch answers 200 with per-recipient lists; ~ is the single-recipient
-::  form, where the status code was the whole verdict
-++  verdicts
-  |=  body=@t
-  ^-  (unit [sent=(list addr:km) dropped=(list addr:km) retry=(list addr:km)])
-  ?~  jon=(de:json:html body)  ~
-  ?.  ?=([%o *] u.jon)  ~
-  ?.  (~(has by p.u.jon) 'sent')  ~
-  =/  addrs
-    |=  key=@t
-    ^-  (list addr:km)
-    ?~  arr=(~(get by p.u.jon) key)  ~
-    ?.  ?=([%a *] u.arr)  ~
-    %+  murn  p.u.arr
-    |=  j=json
-    ^-  (unit addr:km)
-    ?:  ?=([%s *] j)  `p.j
-    ?.  ?=([%o *] j)  ~
-    ?~  t=(~(get by p.j) 'to')  ~
-    ?.  ?=([%s *] u.t)  ~
-    `p.u.t
-  `[(addrs 'sent') (addrs 'dropped') (addrs 'retry')]
+::  ---- the relay ------------------------------------------------------------
 ::
 ::  the relay ships with the desk; config carries a url only to override it
-++  default-relay  'https://keep-posting.com/api/mail/send'
+++  default-relay  'https://keep-posting.com'
 ::
 ++  conf-defaults
   |=  c=config:km
@@ -163,4 +134,120 @@
       ==
     u
   (cat 3 'https://' u)
+::
+::  a config saved when relay meant the send endpoint itself
+++  base-of
+  |=  url=@t
+  ^-  @t
+  =/  t  (trip url)
+  =/  suf  "/api/mail/send"
+  =/  n  (lent suf)
+  ?.  (gte (lent t) n)  url
+  ?.  =(suf (slag (sub (lent t) n) t))  url
+  (crip (scag (sub (lent t) n) t))
+::
+++  send-url       |=(base=@t ^-(@t (cat 3 base '/api/mail/send')))
+++  readers-url    |=(base=@t ^-(@t (cat 3 base '/api/mail/readers')))
+++  token-url      |=(base=@t ^-(@t (cat 3 base '/api/mail/import/token')))
+++  verify-url     |=(base=@t ^-(@t (cat 3 base '/api/mail/import/verify')))
+++  import-url     |=(base=@t ^-(@t (cat 3 base '/api/mail/import')))
+++  profile-url    |=(base=@t ^-(@t (cat 3 base '/api/mail/profile')))
+++  job-url        |=([base=@t job=@t] ^-(@t (rap 3 base '/api/mail/jobs/' job ~)))
+++  subscribe-url  |=([base=@t our=@p] ^-(@t (rap 3 base '/subscribe/' (scot %p our) ~)))
+::
+++  obj
+  |=  body=@t
+  ^-  (unit (map @t json))
+  ?~  jon=(de:json:html body)  ~
+  ?.  ?=([%o *] u.jon)  ~
+  `p.u.jon
+::
+++  num
+  |=  [m=(map @t json) k=@t]
+  ^-  @ud
+  ?~  v=(~(get by m) k)  0
+  ?.  ?=([%n *] u.v)  0
+  (fall (rush p.u.v dem) 0)
+::
+++  str
+  |=  [m=(map @t json) k=@t]
+  ^-  (unit @t)
+  ?~  v=(~(get by m) k)  ~
+  ?.  ?=([%s *] u.v)  ~
+  `p.u.v
+::
+::  a list of addresses, given bare or as {"to": ...} objects
+++  addrs
+  |=  [m=(map @t json) k=@t]
+  ^-  (list addr:km)
+  ?~  arr=(~(get by m) k)  ~
+  ?.  ?=([%a *] u.arr)  ~
+  %+  murn  p.u.arr
+  |=  j=json
+  ^-  (unit addr:km)
+  ?:  ?=([%s *] j)  `p.j
+  ?.  ?=([%o *] j)  ~
+  ?~  t=(~(get by p.j) 'to')  ~
+  ?.  ?=([%s *] u.t)  ~
+  `p.u.t
+::
+::  what the relay says of a request that did not go through
+++  detail-of
+  |=  body=@t
+  ^-  @t
+  ?~  m=(obj body)  body
+  (fall (str u.m 'detail') body)
+::
+::  the 202 a send gets: the job to poll, who it reaches, who to prune,
+::  who is still waiting on a confirmation
+++  job-of
+  |=  body=@t
+  ^-  (unit [job=@t recipients=@ud dropped=(list addr:km) unconfirmed=(list addr:km)])
+  ?~  m=(obj body)  ~
+  ?~  j=(str u.m 'job')  ~
+  `[u.j (num u.m 'recipients') (addrs u.m 'dropped') (addrs u.m 'unconfirmed')]
+::
+::  what a job poll says
+++  job-state
+  |=  body=@t
+  ^-  (unit [status=@t sent=@ud failed=@ud queued=@ud error=(unit @t)])
+  ?~  m=(obj body)  ~
+  ?~  s=(str u.m 'status')  ~
+  `[u.s (num u.m 'sent') (num u.m 'failed') (num u.m 'queued') (str u.m 'error')]
+::
+::  the relay's confirmed readers for this writer
+++  readers-of
+  |=  body=@t
+  ^-  (unit [active=(list addr:km) pending=@ud])
+  ?~  m=(obj body)  ~
+  ?.  (~(has by u.m) 'active')  ~
+  `[(addrs u.m 'active') (num u.m 'pending')]
+::
+++  proof-of
+  |=  body=@t
+  ^-  (unit proof:km)
+  ?~  m=(obj body)  ~
+  ?~  t=(str u.m 'token')  ~
+  `[u.t (str u.m 'verified_url')]
+::
+::  an accepted import: how many the relay will ask
+++  import-of
+  |=  body=@t
+  ^-  (unit @ud)
+  ?~  m=(obj body)  ~
+  ?.  (~(has by u.m) 'pending')  ~
+  `(num u.m 'pending')
+::
+::  the relay's refusals, as a sentence a writer can act on
+++  why-of
+  |=  [code=@ud body=@t]
+  ^-  @t
+  =/  d=@t  (detail-of body)
+  ?:  =(401 code)  'Keep doesn\'t recognize this ship\'s email key — nothing went out'
+  ?:  ?=(^ (find "suspend" (trip d)))
+    'Keep paused your sending for review — nothing went out'
+  ?:  ?=(^ (find "no writer" (trip d)))
+    'This ship isn\'t attached to a Keep account — nothing went out'
+  ?:  =(0 code)  d
+  (crip "Keep answered {(a-co:co code)}: {(trip d)}")
 --

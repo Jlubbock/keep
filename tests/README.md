@@ -57,12 +57,16 @@ at all.
   accepted, so the direct link is the item's only path — which is what an
   internal link in someone's prose is.
 - `c8-mail` — the mailer's send state machine, with the relay played by an
-  http server inside the scenario on `127.0.0.1:8099`. Chunking, the wire
-  contract, settle-on-all-sent, the `again` guard, `dropped` pruning and
-  `retry` queuing, the 401 hard stop, and the leak guard: a gated post
-  never reaches the relay, controlled by a public one that does. Retries
-  are asserted at the queue; the behn wait is thirty minutes by design.
-  Needs the host only.
+  http server inside the scenario on `127.0.0.1:8099`. The ship keeps the
+  list and the relay gates it: the CSV import lands on the ship and is
+  handed to the relay (refused until the source is proven, accepted after
+  `%verify`); a send first pulls who confirmed (a form-confirmed reader is
+  merged in), then posts the whole list; `dropped` prunes, `unconfirmed`
+  stays; the job poll settles the post; the `again` guard; a failed job,
+  the 401 hard stop and the 503 retry queue; the subscribe form on the
+  writer's page; and the leak guard: a gated post never reaches the relay,
+  controlled by a public one that does. Retries are asserted at the queue;
+  the behn wait is thirty minutes by design. Needs the host only.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
 

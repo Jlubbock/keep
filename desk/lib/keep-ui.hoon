@@ -220,22 +220,26 @@
   ^-  (list manx)
   ?~  mail  ~
   ?~  ms.u.mail
-    (mail-verb u.mail (id-of entry.r) back "✉ mail" ~)
+    (mail-verb u.mail (id-of entry.r) back "✉ email this" ~)
   ?-    -.u.ms.u.mail
       %sent
+    =/  n=@ud     n.u.ms.u.mail
+    =/  lost=@ud  lost.u.ms.u.mail
     :_  ~
-    ;span(class "k-mail on", title "mailed"): ✉ mailed {(day wen.u.ms.u.mail)}
+    ;span(class "k-mail on", title "emailed {(day wen.u.ms.u.mail)}")
+      ; ✉ sent to {(a-co:co n)} reader{?:(=(1 n) "" "s")}{?:(=(0 lost) "" " · {(a-co:co lost)} bounced")}
+    ==
   ::
       %sending
     :_  ~
-    ;span.k-mail: ✉ sending…
+    ;span.k-mail: ✉ sending to {(a-co:co of.u.ms.u.mail)} readers · {(a-co:co sent.u.ms.u.mail)} sent
   ::
       %queued
     :_  ~
-    ;span.k-mail: ✉ retrying
+    ;span.k-mail: ✉ Keep is busy — will send shortly
   ::
       %failed
-    (mail-verb u.mail (id-of entry.r) back "mail again" `"✉ failed")
+    (mail-verb u.mail (id-of entry.r) back "email this" `(trip why.u.ms.u.mail))
   ==
 ::
 ++  mail-verb
@@ -679,7 +683,7 @@
   ==
 ::
 ++  write-page
-  |=  [pre=(unit [id=tape src=tape to=tape]) cands=(list cand)]
+  |=  [pre=(unit [id=tape src=tape to=tape]) cands=(list cand) mail=(unit @ud)]
   ^-  manx
   =/  aud=tape  ?~(pre "everyone" to.u.pre)
   %+  shell  %write
@@ -694,6 +698,14 @@
             ;a(href "#", class "{?:(=(nom aud) "on" "")}", data-to "{nom}"): {nom}
       ==
       ;div.k-pub
+        ;*  ?~  mail  ~
+            ?:  =(0 u.mail)  ~
+            ?^  pre  ~
+            :_  ~
+            ;label.k-mail-opt
+              ;input(type "checkbox", id "k-mail");
+              ; email this to {(a-co:co u.mail)} reader{?:(=(1 u.mail) "" "s")}
+            ==
         ;span(id "k-words", class "k-words"): 0 words
         ;a(href "#", id "k-send", class "k-send"): publish
       ==
@@ -850,10 +862,8 @@
         ==
   ==
 ::
-::  roll is the full address list, rendered ONLY on /keep/mail/readers —
-::  a big list stays off the settings page until the writer asks for it
 ++  mail-page
-  |=  [st=(unit status:km) roll=(unit (list [a=addr:km w=@da]))]
+  |=  [st=(unit status:km) roll=(unit (list [a=addr:km w=@da ok=?]))]
   ^-  manx
   %+  shell  %mail
   ;div.k-col
@@ -862,102 +872,139 @@
         ;div(class "k-note", data-state "off"): %keep-mail is not running
     ;*  ?~  st  ~
         ;:  weld
-          (mail-relay-sec u.st)
+          (mail-email-sec u.st)
           (mail-readers-sec u.st roll)
-          (mail-one-sec u.st)
+          (mail-import-sec u.st)
         ==
   ==
 ::
-++  mail-relay-sec
+::  keep-onboard acks its key push by reading the key back off this page:
+::  it rides along hidden, never shown
+++  mail-email-sec
   |=  s=status:km
   ^-  (list manx)
   :_  ~
   ;div.k-mail-sec
-    ;div.k-rules-head: relay
-    ;*  ?:  set-up.s
-          ::  keep-onboard acks its config POST by reading the key back off
-          ::  this page — tell the earth side before hiding or moving it
-          :~  ;p.k-mail-lede: Your relay key is set. Mailed posts go out from this ship.
-              ;div.k-mail-hint: key: {(trip key.s)}
-          ==
-        :~  ;p.k-mail-lede: No relay key yet. Get one at keep-posting.com, then paste it below — that is the whole setup.
-            ;form(method "post", action "/keep-mail", class "k-one k-mail-row")
-              ;+  (hidden "what" "config")
+    ;div.k-rules-head: email
+    ;span(hidden "", data-key "{(trip key.s)}");
+    ;*  ?.  set-up.s
+          :_  ~
+          ;p.k-mail-lede: Email isn't connected to this ship yet. It connects on its own once your ship is claimed at keep-posting.com.
+        ?^  trouble.s
+          :_  ~
+          ;p(class "k-mail-lede k-mail-bad"): {(trip u.trouble.s)}
+        :~  ;p.k-mail-lede: Email is set up. Your posts go out from your Keep address, under the name below.
+            ;form(method "post", action "/keep", class "k-one k-mail-row")
+              ;+  (hidden "what" "mail-name")
               ;+  (hidden "back" "/keep/mail")
-              ;input(type "text", name "key", class "k-mail-in", placeholder "your relay key", autocomplete "off");
-              ;button(type "submit", class "k-link k-mail"): save key
+              ;input(type "text", name "name", class "k-mail-in", placeholder "{(pp our.v)}", value "{(trip name.s)}", autocomplete "name");
+              ;button(type "submit", class "k-link k-mail"): save
             ==
+            ;div.k-mail-hint: any name you like. readers see it as the sender.
         ==
   ==
 ::
+::  two numbers, one sentence about how a reader gets in, and the list
 ++  mail-readers-sec
-  |=  [s=status:km roll=(unit (list [a=addr:km w=@da]))]
+  |=  [s=status:km roll=(unit (list [a=addr:km w=@da ok=?]))]
   ^-  (list manx)
-  =/  rdrs=tape
-    ?:  =(0 readers.s)
-      "No readers yet — import your list below."
-    ?:  =(1 readers.s)
-      "1 reader gets each post you mail."
-    "{(a-co:co readers.s)} readers get each post you mail."
+  =/  total=@ud  (add readers.s waiting.s)
+  =/  line=tape
+    ?:  =(0 total)
+      "No readers yet."
+    %+  weld
+      "{(a-co:co readers.s)} reader{?:(=(1 readers.s) "" "s")}"
+    ?:(=(0 waiting.s) "" " · {(a-co:co waiting.s)} waiting")
   :_  ~
   ;div.k-mail-sec
     ;div.k-rules-head: readers
-    ;p.k-mail-lede
-      ;+  ;/("{rdrs} ")
-      ;*  ?:  =(0 readers.s)  ~
-          =/  [href=tape lbl=tape]
-            ?~  roll  ["/keep/mail/readers" "show the list"]
-            ["/keep/mail" "hide the list"]
-          :_  ~
-          ;a(href "{href}", class "k-mail"): {lbl}
-    ==
-    ::  the file becomes an ordinary form field in app.js — eyre
-    ::  sees urlencoded bytes, never multipart
-    ;form(method "post", action "/keep", class "k-one k-mail-import k-mail-row")
-      ;+  (hidden "what" "mail-import")
-      ;+  (hidden "back" "/keep/mail")
-      ;input(type "hidden", name "emails", value "");
-      ;input(type "file", name "csv", class "k-file", accept ".csv,text/csv");
-      ;button(type "submit", class "k-link k-mail"): import
-    ==
-    ;div.k-mail-hint: a substack export csv, or any file of addresses — one per line
-    ;*  ?~  imported.s  ~
+    ;p.k-mail-lede: {line}
+    ;div.k-mail-hint: Add readers one at a time or import a list below. To use the relay, every reader must confirm: each address is emailed once, and only those who click are mailed. If we detect mail going to people who never subscribed, your access to the relay is limited.
+    ;*  ?.  set-up.s  ~
         :_  ~
-        ;div.k-mail-hint: last import: {(a-co:co added.u.imported.s)} added · {(a-co:co dropped.u.imported.s)} lines dropped
-    ;*  ?~  roll  ~
+        ;form(method "post", action "/keep", class "k-one k-mail-row")
+          ;+  (hidden "what" "mail-import")
+          ;+  (hidden "back" "/keep/mail")
+          ;+  (hidden "url" "")
+          ;input(type "text", name "emails", class "k-mail-in", placeholder "reader@example.com", autocomplete "off");
+          ;button(type "submit", class "k-link k-mail"): add
+        ==
+    ;*  ?:  =(0 total)  ~
+        ?~  roll
+          :_  ~
+          ;div.k-mail-hint
+            ;a(href "/keep/mail/readers", class "k-mail"): show the list
+          ==
         :_  ~
         ;div.k-mail-roll
           ;*  %+  turn  u.roll
-              |=  [a=addr:km w=@da]
+              |=  [a=addr:km w=@da ok=?]
               ;div.k-member
                 ;span: {(trip a)}
                 ;span.k-date: {(day w)}
+                ;span(class "k-mail-hint"): {?:(ok "reader" "waiting")}
                 ;form(method "post", action "/keep", style "display:inline")
                   ;+  (hidden "what" "mail-remove")
                   ;+  (hidden "addr" (trip a))
-                  ;+  (hidden "back" "/keep/mail/readers")
+                  ;+  (hidden "back" "/keep/mail")
                   ;button(type "submit", class "k-link k-x", title "remove"): ×
                 ==
               ==
         ==
   ==
 ::
-::  a single address goes through the same %import sieve as a whole csv
-++  mail-one-sec
+::  one card, one of three states: prove, upload, done
+::  one card: upload, or done. the ownership check is a badge beside it
+++  mail-import-sec
   |=  s=status:km
   ^-  (list manx)
+  ?.  set-up.s  ~
+  ?^  trouble.s  ~
+  =/  proven=(unit @t)  ?~(proof.s ~ verified.u.proof.s)
   :_  ~
   ;div.k-mail-sec
-    ;div.k-rules-head: add or remove a reader
-    ::  enter submits the first button — add
-    ;form(method "post", action "/keep", class "k-one k-mail-row")
-      ;+  (hidden "back" "/keep/mail")
-      ;input(type "text", name "emails", class "k-mail-in", placeholder "reader@example.com", autocomplete "off");
-      ;button(type "submit", name "what", value "mail-import", class "k-link k-mail"): add
-      ;*  ?:  =(0 readers.s)  ~
+    ;div.k-rules-head: moving from substack
+    ;*  ?^  asked.s
+          =/  n=@ud  u.asked.s
+          =/  days=@ud  (max 1 (div (add n 499) 500))
+          :~  ;p.k-mail-lede: Done. {(a-co:co n)} reader{?:(=(1 n) "" "s")} will be asked to re-confirm over the next {(a-co:co days)} day{?:(=(1 days) "" "s")}. Those who click show up above.
+              ;form(method "post", action "/keep", class "k-one")
+                ;+  (hidden "what" "mail-reset")
+                ;+  (hidden "back" "/keep/mail")
+                ;button(type "submit", class "k-link k-mail"): import another export
+              ==
+          ==
+        ::  the file becomes an ordinary form field in app.js — eyre
+        ::  sees urlencoded bytes, never multipart
+        :~  ;p.k-mail-lede: Upload your subscriber export (Substack → Settings → Exports), or any CSV of addresses. Each reader is emailed once to re-confirm; those who click show up above.
+            ;form(method "post", action "/keep", class "k-one k-mail-import k-mail-row")
+              ;+  (hidden "what" "mail-import")
+              ;+  (hidden "back" "/keep/mail")
+              ;+  (hidden "url" ?~(proven "" (trip u.proven)))
+              ;input(type "hidden", name "emails", value "");
+              ;input(type "file", name "csv", class "k-file", accept ".csv,text/csv");
+              ;button(type "submit", class "k-link k-mail"): import
+            ==
+        ==
+    ;*  ?~  relayed.s  ~
+        :_  ~
+        ;div(class "k-mail-hint k-mail-bad"): {(trip u.relayed.s)}
+    ;*  ?~  proof.s  ~
+        ?^  proven
           :_  ~
-          ;button(type "submit", name "what", value "mail-remove", class "k-link k-mail"): remove
-    ==
+          ;div.k-mail-hint: ✓ verified on Substack
+        :~  ;div.k-mail-hint: Optional — show a "verified on Substack" badge: put this on your About page, then enter that page's address.
+            ;div(class "k-mail-hint", style "user-select:all"): {(trip token.u.proof.s)}
+            ;form(method "post", action "/keep", class "k-one k-mail-row")
+              ;+  (hidden "what" "mail-verify")
+              ;+  (hidden "back" "/keep/mail")
+              ;input(type "text", name "url", class "k-mail-in", placeholder "https://you.substack.com/about", autocomplete "off");
+              ;button(type "submit", class "k-link k-mail"): verify
+            ==
+        ==
+    ;*  ?~  checked.s  ~
+        :_  ~
+        ;div(class "k-mail-hint k-mail-bad"): {(trip u.checked.s)}
   ==
 ::
 ++  sync-page

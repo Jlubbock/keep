@@ -1,10 +1,14 @@
 ::  keep-mail — mails a post to the ship's readers, on a click and never
-::  otherwise. recipients are imported from a substack csv, on the ship.
+::  otherwise. recipients are imported from a substack csv, on the ship;
+::  the relay holds the consent record for each and mails only those who
+::  confirmed, reporting the rest back.
 ::
-::    one POST per 50 readers: the relay fans out one mail per address,
-::    each with its own unsubscribe footer, and answers with a verdict per
-::    address. a chunk in flight is keyed by its index in the round.
-::    unsubscribes live at the relay and come back in `dropped`.
+::    a send is three hops on one round: ask the relay who confirmed (and
+::    merge them in), POST the post with the whole list, then poll the job
+::    it answers with until it settles. a round stamps its event time into
+::    the flight and every wire, so a response from an earlier round
+::    cannot touch the post — it can only still prune an address the
+::    relay dropped.
 ::
 /-  keep, km=keep-mail
 /+  default-agent, dbug, srv=server, kml=keep-mail, mh=md-html, kc=keep-core
@@ -14,26 +18,30 @@
 ::  from and site were never read; the relay derives From from the key
 +$  config-2  [relay=@t key=@t from=@t site=@t]
 ::
-::  wait: the largest Retry-After the relay sent this round; 0 is "none"
 +$  flite-1  [waiting=@ud tries=@ud fails=(list addr) wait=@dr]
-::  round: the event that fired the requests; a response from any other is stale
-+$  flite
++$  flite-2
   $:  round=@da
       tries=@ud
       fails=(list addr)
       wait=@dr
-      open=(map @ud (list addr))         ::  chunks still unanswered
+      open=(map @ud (list addr))
   ==
++$  flite-5  [round=@da tries=@ud job=(unit @t) again=?]
+::  round: the event that fired the send; job: what the relay gave back;
+::  again: the writer re-mailing a sent post, which the relay must be told;
+::  sent/of: progress, for the page
++$  flite  [round=@da tries=@ud job=(unit @t) again=? sent=@ud of=@ud]
++$  readers-4  [active=@ud pending=@ud as-of=@da]
 ::
 +$  state-0
   $:  %0
       config=(unit config-2)
       subs=(map addr @da)
-      salt=@uvH                          ::  tokens derive from it; per-ship
+      salt=@uvH
       sent=(map id:keep @da)
       flight=(map id:keep [waiting=@ud tries=@ud fails=(list addr)])
       queue=(list [id=id:keep left=(list addr) tries=@ud])
-      dead=(set id:keep)                 ::  gave up; the verb comes back
+      dead=(set id:keep)
       imported=(unit [added=@ud dropped=@ud])
   ==
 ::
@@ -54,7 +62,7 @@
       config=(unit config-2)
       subs=(map addr @da)
       sent=(map id:keep @da)
-      flight=(map id:keep flite)
+      flight=(map id:keep flite-2)
       queue=(list [id=id:keep left=(list addr) tries=@ud])
       dead=(set id:keep)
       imported=(unit [added=@ud dropped=@ud])
@@ -65,20 +73,81 @@
       config=(unit config:km)
       subs=(map addr @da)
       sent=(map id:keep @da)
-      flight=(map id:keep flite)
+      flight=(map id:keep flite-2)
       queue=(list [id=id:keep left=(list addr) tries=@ud])
       dead=(set id:keep)
       imported=(unit [added=@ud dropped=@ud])
   ==
 ::
-+$  versioned-state  $%(state-0 state-1 state-2 state-3)
+::  a day's build that held no list at all, briefly on the test fleet
++$  state-4
+  $:  %4
+      config=(unit config:km)
+      readers=(unit readers-4)
+      sent=(map id:keep @da)
+      flight=(map id:keep [round=@da tries=@ud job=(unit @t)])
+      queue=(list [id=id:keep tries=@ud])
+      dead=(set id:keep)
+  ==
+::
++$  state-5
+  $:  %5
+      config=(unit config:km)
+      subs=(map addr @da)
+      view=(unit readers:km)
+      imported=(unit [added=@ud dropped=@ud])
+      relayed=(unit @t)
+      proof=(unit proof:km)
+      sent=(map id:keep @da)
+      flight=(map id:keep flite-5)
+      queue=(list [id=id:keep tries=@ud again=?])
+      dead=(set id:keep)
+  ==
+::
++$  state-6
+  $:  %6
+      config=(unit config:km)
+      name=@t
+      subs=(map addr @da)
+      view=(unit readers:km)
+      asked=(unit @ud)
+      relayed=(unit @t)
+      proof=(unit proof:km)
+      staged=(unit [raw=@t url=@t])
+      sent=(map id:keep [wen=@da n=@ud lost=@ud])
+      flight=(map id:keep flite)
+      queue=(list [id=id:keep tries=@ud again=?])
+      dead=(map id:keep @t)
+  ==
+::
++$  state-7
+  $:  %7
+      config=(unit config:km)
+      name=@t                            ::  the sender readers see; '' is the ship's name
+      subs=(map addr @da)
+      view=(unit readers:km)             ::  the relay's confirmed set, last we asked
+      asked=(unit @ud)                   ::  the last import: how many the relay will ask
+      relayed=(unit @t)                  ::  or why it refused
+      proof=(unit proof:km)              ::  the optional substack badge
+      checked=(unit @t)                  ::  what the last ownership check said, if it failed
+      trouble=(unit @t)                  ::  the relay rejected our key, or could not be reached
+      sent=(map id:keep [wen=@da n=@ud lost=@ud])
+      flight=(map id:keep flite)
+      queue=(list [id=id:keep tries=@ud again=?])
+      dead=(map id:keep @t)              ::  gave up, and why; the verb comes back
+  ==
+::
++$  versioned-state  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6 state-7)
 ::
 ++  retry-wait  ~m30
 ++  max-tries   5
+++  poll-first  ~s10
+++  poll-wait   ~m2
+++  view-fresh  ~m1
 --
 ::
 %-  agent:dbug
-=|  state-3
+=|  state-7
 =*  state  -
 ^-  agent:gall
 =<
@@ -99,11 +168,61 @@
   =/  old  !<(versioned-state vase)
   |-
   ?-    -.old
-      %3  `this(state old)
-      %2
-    :-  ~
+      %7  `this(state old)
+  ::
+      %6
+    :-  ?~(config.old ~ (ask:hc u.config.old))
     %=  this
       state
+        ^-  state-7
+        :*  %7  config.old  name.old  subs.old  view.old  asked.old  relayed.old
+            proof.old  ~  ~  sent.old  flight.old  queue.old  dead.old
+        ==
+    ==
+  ::
+      %5
+    =/  back=(map id:keep @t)
+      =/  ids  ~(tap in (~(uni in dead.old) ~(key by flight.old)))
+      =/  qs   (turn queue.old |=([i=id:keep *] i))
+      %-  ~(gas by *(map id:keep @t))
+      (turn (weld ids qs) |=(i=id:keep [i 'this post was mid-send during an upgrade — mail it again']))
+    =/  sn=(map id:keep [wen=@da n=@ud lost=@ud])
+      (~(run by sent.old) |=(w=@da [w 0 0]))
+    %=  $
+      old
+        ^-  state-6
+        [%6 config.old '' subs.old ~ ~ relayed.old proof.old ~ sn ~ ~ back]
+    ==
+  ::
+      %4
+    =/  back=(set id:keep)
+      %-  ~(uni in dead.old)
+      %-  ~(uni in ~(key by flight.old))
+      (~(gas in *(set id:keep)) (turn queue.old |=([i=id:keep *] i)))
+    %=  $
+      old
+        ^-  state-5
+        [%5 config.old ~ ~ ~ ~ ~ sent.old ~ ~ back]
+    ==
+  ::
+      %3
+    =/  conf=(unit config:km)
+      ?~  config.old  ~
+      `(conf-defaults:kml [(base-of:kml relay.u.config.old) key.u.config.old])
+    =/  back=(set id:keep)
+      %-  ~(uni in dead.old)
+      %-  ~(uni in ~(key by flight.old))
+      (~(gas in *(set id:keep)) (turn queue.old |=([i=id:keep *] i)))
+    %=  $
+      old
+        ^-  state-5
+        [%5 conf subs.old ~ imported.old ~ ~ sent.old ~ ~ back]
+    ==
+  ::
+      %2
+    %=  $
+      old
+        ^-  state-3
         :*  %3
             ?~(config.old ~ `[relay.u.config.old key.u.config.old])
             subs.old  sent.old  flight.old  queue.old  dead.old  imported.old
@@ -111,7 +230,6 @@
     ==
   ::
       %1
-    ::  a round in flight answers on the old wire shape and would never settle
     %=  $
       old
         ^-  state-2
@@ -139,12 +257,16 @@
   |=  =path
   ^-  (unit (unit cage))
   ?+  path  (on-peek:def path)
-    [%x %status ~]  ``noun+!>(status:hc)
-    [%x %subs ~]    ``noun+!>(subs)
-    [%x %sent ~]    ``noun+!>(sent)
-    [%x %queue ~]   ``noun+!>(queue)
+    [%x %status ~]   ``noun+!>(status:hc)
+    [%x %subs ~]     ``noun+!>(subs)
+    [%x %view ~]     ``noun+!>(view)
+    [%x %sent ~]     ``noun+!>(sent)
+    [%x %queue ~]    ``noun+!>(queue)
+    [%x %flight ~]   ``noun+!>(flight)
+    [%x %dead ~]     ``noun+!>(dead)
+    [%x %proof ~]    ``noun+!>(proof)
   ::  the key is readable on purpose: a leaked key is revoked at the relay
-    [%x %config ~]  ``noun+!>(config)
+    [%x %config ~]   ``noun+!>(config)
   ==
 ::
 ++  on-poke
@@ -156,8 +278,35 @@
     =/  act  !<(action:km vase)
     ?-    -.act
         %config
-      `this(config `(conf-defaults:kml config.act))
+      =/  c  (conf-defaults:kml config.act)
+      :_  this(config `c)
+      %+  weld  (ask:hc c)
+      ?:(=('' name) ~ ~[(tell-name:hc c name)])
     ::
+        %name
+      =/  n=@t  (crip (strip:kml (trip name.act)))
+      :_  this(name n)
+      ?~(config ~ ~[(tell-name:hc u.config n)])
+    ::
+    ::  only when the view is stale: the page asks on every load
+        %refresh
+      ?~  config  `this
+      ?:  ?&  ?=(^ view)
+              ?=(^ proof)
+              (lth (sub now.bowl as-of.u.view) view-fresh)
+          ==
+        `this
+      :_  this
+      (ask:hc u.config)
+    ::
+        %verify
+      ?~  config  ~|(%keep-mail-not-configured !!)
+      :_  this
+      ~[(verify:hc u.config url.act)]
+    ::
+    ::  the csv is the list, here and now, and the relay gets it in the
+    ::  same click. a page address given alongside is checked for the
+    ::  badge; the import does not wait on it
         %import
       =/  [good=(list addr) dropped=@ud]  (sieve:kml raw.act)
       =/  new=(list addr)  (skip good ~(has by subs))
@@ -166,28 +315,35 @@
         |-  ^-  (map addr @da)
         ?~  as  subs
         (~(put by $(as t.as)) i.as now.bowl)
-      `this(subs ss, imported `[(lent new) dropped])
+      =/  url=@t  (crip (strip:kml (trip url.act)))
+      =/  proven=(unit @t)  ?~(proof ~ verified.u.proof)
+      ?~  config
+        `this(subs ss, asked ~, relayed `'email isn\'t connected to this ship yet')
+      :_  this(subs ss, asked ~, relayed ~, checked ?:(=('' url) checked ~))
+      :-  (hand-import:hc u.config raw.act (fall proven url))
+      ?:  |(=('' url) =(`url proven))  ~
+      ~[(verify:hc u.config url)]
     ::
         %remove
       =/  a=addr  (crip (lower:kml (trip addr.act)))
       `this(subs (~(del by subs) a))
+    ::
+        %reset
+      `this(asked ~, relayed ~)
     ::
         %send
       ?~  config  ~|(%keep-mail-not-configured !!)
       ?:  &(!again.act (~(has by sent) id.act))  `this
       ?:  (~(has by flight) id.act)  `this
       ?:  (queued:hc id.act)  `this
-      =/  to=(list addr)  ~(tap in ~(key by subs))
-      ?~  to  ~|(%keep-mail-no-readers !!)
       =/  pay  (payload:hc id.act)
       ?~  pay  ~|(%keep-mail-not-a-public-post !!)
-      =/  open  (opened:hc to)
       :_  %=  this
-            flight  (~(put by flight) id.act [now.bowl 0 ~ ~s0 open])
+            flight  (~(put by flight) id.act [now.bowl 0 ~ again.act 0 0])
             sent    (~(del by sent) id.act)
-            dead    (~(del in dead) id.act)
+            dead    (~(del by dead) id.act)
           ==
-      (fire:hc u.config id.act now.bowl u.pay open)
+      ~[(sync:hc u.config id.act now.bowl)]
     ==
   ::
       %handle-http-request
@@ -222,80 +378,137 @@
     `this
   ::
   ?:  ?=([%behn %wake *] sign-arvo)
-    ?.  ?=([%retry @ ~] wire)  `this
-    =/  i=id:keep  (slav %uv i.t.wire)
-    ?~  got=(find-queued:hc i)  `this
-    =/  nq  (drop-queued:hc i)
-    ?^  error.sign-arvo
-      ::  behn hiccuped; re-arm rather than lose the batch
+    ?+    wire  `this
+        [%retry @ ~]
+      =/  i=id:keep  (slav %uv i.t.wire)
+      ?~  got=(find-queued:hc i)  `this
+      =/  [tries=@ud again=?]  u.got
+      ?^  error.sign-arvo
+        ::  behn hiccuped; re-arm rather than lose the send
+        :_  this
+        ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl retry-wait)]]
+      =/  nq  (drop-queued:hc i)
+      ?~  config  `this(queue nq)
+      ?~  (payload:hc i)
+        %-  (slog leaf+"keep-mail: post gone; dropping its mail retry" ~)
+        `this(queue nq)
+      :_  %=  this
+            queue   nq
+            flight  (~(put by flight) i [now.bowl tries ~ again 0 0])
+          ==
+      ~[(sync:hc u.config i now.bowl)]
+    ::
+        [%tick @ @ ~]
+      =/  i=id:keep   (slav %uv i.t.wire)
+      =/  round=@da   (slav %da i.t.t.wire)
+      ?~  got=(~(get by flight) i)  `this
+      ?.  =(round round.u.got)  `this
+      ?~  job.u.got  `this
+      ?~  config  `this
       :_  this
-      ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl retry-wait)]]
-    ?~  config  `this(queue nq)
-    =/  live=(list addr)  (skim left.u.got ~(has by subs))
-    ?~  live  `this(queue nq)
-    =/  pay  (payload:hc i)
-    ?~  pay
-      %-  (slog leaf+"keep-mail: post gone; dropping its mail retry" ~)
-      `this(queue nq)
-    =/  open  (opened:hc live)
-    :_  %=  this
-          queue   nq
-          flight  (~(put by flight) i [now.bowl tries.u.got ~ ~s0 open])
-        ==
-    (fire:hc u.config i now.bowl u.pay open)
+      ~[(poll-job:hc u.config i round u.job.u.got)]
+    ==
   ::
   ?.  ?=([%iris %http-response *] sign-arvo)  (on-arvo:def wire sign-arvo)
-  ?.  ?=([%send @ @ @ ~] wire)  `this
-  =/  i=id:keep   (slav %uv i.t.wire)
-  =/  round=@da   (slav %da i.t.t.wire)
-  =/  k=@ud       (slav %ud i.t.t.t.wire)
   =/  res  client-response.sign-arvo
   ?:  ?=(%progress -.res)  `this
   =/  code=@ud
     ?:(?=(%finished -.res) status-code.response-header.res 0)
-  ::  the relay's contract: a batch is 200 with per-recipient verdicts; 0
-  ::  (%cancel), 429 and 5xx retry the whole call. everything else — 401
-  ::  bad key, 422 systemic — means nothing was delivered and no recipient
-  ::  is at fault: fail hard, never mark a post %sent on it.
-  =/  done=?       &((gte code 200) (lth code 300))
-  =/  retryable=?  |(=(0 code) =(429 code) (gte code 500))
-  =/  ver=(unit [sent=(list addr) dropped=(list addr) retry=(list addr)])
-    ?.  &(done ?=(%finished -.res))  ~
-    ?~  full-file.res  ~
-    (verdicts:kml q.data.u.full-file.res)
-  ::  a stale round's verdict on an address still stands; on the post it does not
-  =/  dropped=(list addr)  ?~(ver ~ dropped.u.ver)
-  =.  subs  (prune:hc dropped)
-  ?~  got=(~(get by flight) i)  `this
-  ?.  =(round round.u.got)  `this
-  ?~  chunk=(~(get by open.u.got) k)  `this
-  ?.  |(done retryable)
-    %-  (slog leaf+"keep-mail: relay refused ({(a-co:co code)}) — check the key at /keep/mail" ~)
-    `this(flight (~(del by flight) i), dead (~(put in dead) i))
-  ~?  ?=(^ dropped)  [%keep-mail-relay-dropped dropped]
-  ::  a quota 429 carries Retry-After: seconds to the utc-midnight reset
-  =/  wait=@dr
-    %+  max  wait.u.got
-    ?.(=(429 code) ~s0 (retry-after:hc res))
-  =/  retry=(list addr)
-    ?:  retryable  u.chunk
-    ?~  ver  ~
-    retry.u.ver
-  =/  fails=(list addr)  (weld retry fails.u.got)
-  =/  open  (~(del by open.u.got) k)
-  ?.  =(~ open)
-    `this(flight (~(put by flight) i u.got(fails fails, wait wait, open open)))
-  ::  the last call landed: settle the post
-  ?~  fails
-    `this(flight (~(del by flight) i), sent (~(put by sent) i now.bowl))
-  =/  tries=@ud  +(tries.u.got)
-  ?:  (gte tries max-tries)
-    =/  lost  (lent `(list addr)`fails)
-    %-  (slog leaf+"keep-mail: giving up on {(scow %uv i)}: {(a-co:co lost)} unreached after {(a-co:co tries)} tries" ~)
-    `this(flight (~(del by flight) i), dead (~(put in dead) i))
-  =/  pause=@dr  ?:(=(~s0 wait) retry-wait (add wait ~m2))
-  :_  this(flight (~(del by flight) i), queue [[i fails tries] queue])
-  ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl pause)]]
+  =/  body=@t
+    ?.  ?=(%finished -.res)  ''
+    ?~  full-file.res  ''
+    q.data.u.full-file.res
+  =/  ok=?  &((gte code 200) (lth code 300))
+  ?+    wire  `this
+      [%readers ~]
+    `this(state (merge:hc code body), trouble (trouble-of:hc code body))
+  ::
+      [%proof ~]
+    =.  trouble  (trouble-of:hc code body)
+    ?.  ok  `this
+    `this(proof (proof-of:kml body))
+  ::
+      [%profile ~]
+    ~?  !ok  [%keep-mail-name-not-taken code]
+    `this
+  ::
+  ::  the ownership check answers: a badge, or a sentence about why not
+      [%verify ~]
+    =/  p  ?.(ok ~ (proof-of:kml body))
+    =/  found=?  &(?=(^ p) ?=(^ verified.u.p))
+    =/  np=(unit proof:km)  ?~(p proof p)
+    ?:  found  `this(proof np, checked ~)
+    `this(proof np, checked `'we couldn\'t find your token on that page — check the address and try again')
+  ::
+      [%import ~]
+    =/  n  ?.(ok ~ (import-of:kml body))
+    ?~  n
+      `this(asked ~, relayed `(detail-of:kml body))
+    `this(asked n, relayed ~)
+  ::
+  ::  who confirmed, merged in; then the post goes with the whole list.
+  ::  a relay that cannot answer here still gets the send: it gates anyway
+      [%sync @ @ ~]
+    =/  i=id:keep   (slav %uv i.t.wire)
+    =/  round=@da   (slav %da i.t.t.wire)
+    =.  state  (merge:hc code body)
+    ?~  got=(~(get by flight) i)  `this
+    ?.  =(round round.u.got)  `this
+    ?~  config  `this
+    ?~  pay=(payload:hc i)
+      `this(flight (~(del by flight) i))
+    :_  this
+    ~[(send-post:hc u.config i round again.u.got u.pay ~(tap in ~(key by subs)))]
+  ::
+  ::  the send: 202 carries the job to poll and the verdict on each address
+  ::  the relay will not mail. 0 (%cancel), 429 and 5xx retry the whole
+  ::  call; everything else — 401 bad key, 403 the writer may not send, 422
+  ::  systemic — means nothing was delivered: fail hard, say why, never mark
+  ::  a post %sent on it
+      [%send @ @ ~]
+    =/  i=id:keep   (slav %uv i.t.wire)
+    =/  round=@da   (slav %da i.t.t.wire)
+    =/  ans  ?.(ok ~ (job-of:kml body))
+    ::  a stale round's verdict on an address still stands; on the post it does not
+    =?  subs  ?=(^ ans)  (prune:hc dropped.u.ans)
+    ~?  &(?=(^ ans) ?=(^ dropped.u.ans))  [%keep-mail-relay-dropped dropped.u.ans]
+    ?~  got=(~(get by flight) i)  `this
+    ?.  =(round round.u.got)  `this
+    ?^  ans
+      ?:  =(0 recipients.u.ans)
+        %-  (slog leaf+"keep-mail: none of your readers has confirmed yet — nothing was sent" ~)
+        `this(flight (~(del by flight) i))
+      :_  this(flight (~(put by flight) i u.got(job `job.u.ans, of recipients.u.ans)))
+      ~[(tick:hc i round poll-first)]
+    =^  cards  state
+      ?:  |(=(0 code) =(429 code) (gte code 500))
+        (defer:hc i +(tries.u.got) again.u.got (retry-after:hc res))
+      (give-up:hc i (why-of:kml code body))
+    [cards this]
+  ::
+  ::  the job: done settles the post; failed surfaces the relay's reason;
+  ::  anything still moving updates the count and is asked again in a while
+      [%poll @ @ ~]
+    =/  i=id:keep   (slav %uv i.t.wire)
+    =/  round=@da   (slav %da i.t.t.wire)
+    ?~  got=(~(get by flight) i)  `this
+    ?.  =(round round.u.got)  `this
+    ?:  |(=(401 code) =(403 code) =(404 code))
+      =^  cards  state  (give-up:hc i (why-of:kml code body))
+      [cards this]
+    =/  st  ?.(=(200 code) ~ (job-state:kml body))
+    ?~  st
+      :_  this
+      ~[(tick:hc i round poll-wait)]
+    ?:  =('failed' status.u.st)
+      =^  cards  state  (give-up:hc i (why-of:kml 0 (fall error.u.st 'Keep gave up on this send')))
+      [cards this]
+    ?.  =('done' status.u.st)
+      :_  this(flight (~(put by flight) i u.got(sent sent.u.st)))
+      ~[(tick:hc i round poll-wait)]
+    =/  reached  [now.bowl sent.u.st failed.u.st]
+    `this(flight (~(del by flight) i), sent (~(put by sent) i reached))
+  ==
 ::
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def
@@ -311,10 +524,10 @@
     ?~  xs  ~
     (~(put by $(xs t.xs)) p.i.xs [%sent q.i.xs])
   =.  m
-    =/  xs  ~(tap in dead)
+    =/  xs  ~(tap by dead)
     |-  ^-  (map id:keep mstat:km)
     ?~  xs  m
-    (~(put by $(xs t.xs)) i.xs [%failed ~])
+    (~(put by $(xs t.xs)) p.i.xs [%failed q.i.xs])
   =.  m
     =/  xs  queue
     |-  ^-  (map id:keep mstat:km)
@@ -324,23 +537,56 @@
     =/  xs  ~(tap by flight)
     |-  ^-  (map id:keep mstat:km)
     ?~  xs  m
-    (~(put by $(xs t.xs)) p.i.xs [%sending ~])
-  [?=(^ config) ?~(config '' key.u.config) ~(wyt by subs) imported m]
+    (~(put by $(xs t.xs)) p.i.xs [%sending sent.q.i.xs of.q.i.xs])
+  =/  conf=@ud  confirmed
+  :*  ?=(^ config)
+      ?~(config '' key.u.config)
+      name
+      conf
+      (sub ~(wyt by subs) conf)
+      ?~(view ~ `as-of.u.view)
+      asked
+      relayed
+      proof
+      checked
+      trouble
+      ?~(config '' (subscribe-url:kml relay.u.config our.bowl))
+      m
+  ==
 ::
-++  opened
-  |=  as=(list addr)
-  ^-  (map @ud (list addr))
-  =/  cs  (chunks:kml as)
-  =|  k=@ud
-  |-  ^-  (map @ud (list addr))
-  ?~  cs  ~
-  (~(put by $(cs t.cs, k +(k))) k i.cs)
+::  a look at the relay that came back wrong, in the writer's words
+++  trouble-of
+  |=  [code=@ud body=@t]
+  ^-  (unit @t)
+  ?:  &((gte code 200) (lth code 300))  ~
+  ?:  |(=(401 code) =(403 code))  `(why-of:kml code body)
+  `'Keep couldn\'t be reached just now — this page will try again'
+
 ::
-++  fire
-  |=  [c=config:km i=id:keep round=@da pay=[sub=@t txt=@t htm=@t] open=(map @ud (list addr))]
-  ^-  (list card)
-  %+  turn  ~(tap by open)
-  |=([k=@ud as=(list addr)] (send-one c i round k pay as))
+::  readers on the ship the relay would actually mail
+++  confirmed
+  ^-  @ud
+  ?~  view  0
+  %-  lent
+  (skim ~(tap in ~(key by subs)) ~(has in confirmed.u.view))
+::
+::  the relay's confirmed set becomes ours: a reader who confirmed through
+::  the form on our page is on our list from the next look
+++  merge
+  |=  [code=@ud body=@t]
+  ^+  state
+  ?.  &((gte code 200) (lth code 300))  state
+  ?~  r=(readers-of:kml body)  state
+  =/  ss=(map addr @da)
+    =/  as  active.u.r
+    |-  ^-  (map addr @da)
+    ?~  as  subs
+    =/  m  $(as t.as)
+    ?:((~(has by m) i.as) m (~(put by m) i.as now.bowl))
+  %=  state
+    subs  ss
+    view  `[(~(gas in *(set addr)) active.u.r) pending.u.r now.bowl]
+  ==
 ::
 ++  prune
   |=  as=(list addr)
@@ -349,6 +595,25 @@
   |-  ^-  (map addr @da)
   ?~  as  m
   $(as t.as, m (~(del by m) i.as))
+::
+++  queued
+  |=  i=id:keep
+  ^-  ?
+  (lien queue |=([q=id:keep *] =(q i)))
+::
+++  find-queued
+  |=  i=id:keep
+  ^-  (unit [tries=@ud again=?])
+  =/  qs  queue
+  |-  ^-  (unit [tries=@ud again=?])
+  ?~  qs  ~
+  ?:  =(id.i.qs i)  `[tries.i.qs again.i.qs]
+  $(qs t.qs)
+::
+++  drop-queued
+  |=  i=id:keep
+  ^-  _queue
+  (skip queue |=([q=id:keep *] =(q i)))
 ::
 ++  retry-after
   |=  res=client-response:iris
@@ -360,24 +625,28 @@
   ?:  (gth u.s 86.400)  ~d1
   (mul u.s ~s1)
 ::
-++  queued
-  |=  i=id:keep
-  ^-  ?
-  (lien queue |=([q=id:keep * *] =(q i)))
+::  the send failed for now: back off, then try again from the top
+++  defer
+  |=  [i=id:keep tries=@ud again=? wait=@dr]
+  ^-  (quip card _state)
+  ?:  (gte tries max-tries)
+    =/  why  'Keep couldn\'t be reached — nothing went out'
+    %-  (slog leaf+"keep-mail: giving up on {(scow %uv i)} after {(a-co:co tries)} tries" ~)
+    `state(flight (~(del by flight) i), dead (~(put by dead) i why))
+  =/  pause=@dr  ?:(=(~s0 wait) retry-wait (add wait ~m2))
+  :_  state(flight (~(del by flight) i), queue [[i tries again] queue])
+  ~[[%pass /retry/(scot %uv i) %arvo %b %wait (add now.bowl pause)]]
 ::
-++  find-queued
-  |=  i=id:keep
-  ^-  (unit [left=(list addr) tries=@ud])
-  =/  qs  queue
-  |-  ^-  (unit [left=(list addr) tries=@ud])
-  ?~  qs  ~
-  ?:  =(id.i.qs i)  `[left.i.qs tries.i.qs]
-  $(qs t.qs)
+++  give-up
+  |=  [i=id:keep why=@t]
+  ^-  (quip card _state)
+  %-  (slog leaf+"keep-mail: {(trip why)}" ~)
+  `state(flight (~(del by flight) i), dead (~(put by dead) i why))
 ::
-++  drop-queued
-  |=  i=id:keep
-  ^-  _queue
-  (skip queue |=([q=id:keep * *] =(q i)))
+++  tick
+  |=  [i=id:keep round=@da wait=@dr]
+  ^-  card
+  [%pass /tick/(scot %uv i)/(scot %da round) %arvo %b %wait (add now.bowl wait)]
 ::
 ::  ~ is "not mailable": no such post, not %public, or not prose
 ++  payload
@@ -397,31 +666,79 @@
   =/  md=@t  `@t`q.page.u.got
   `[(subject:kml title.head.u.got md) md (convert:mh md)]
 ::
-::  no footer: the relay appends its own unsubscribe footer and RFC-8058
-::  headers per recipient
-++  send-one
-  |=  [c=config:km i=id:keep round=@da k=@ud pay=[sub=@t txt=@t htm=@t] to=(list addr)]
+++  fetch
+  |=  [=wire =request:http]
   ^-  card
-  =/  jon=json
-    %-  pairs:enjs:format
-    :~  ['patp' s+(scot %p our.bowl)]
-        ['to' a+(turn to |=(a=addr ^-(json s+a)))]
-        ['subject' s+sub.pay]
-        ['text' s+txt.pay]
-        ['html' s+htm.pay]
-    ==
-  =/  =request:http
-    :*  %'POST'
-        relay.c
-        :~  ['content-type' 'application/json']
-            ['authorization' (cat 3 'Bearer ' key.c)]
-        ==
-        `(as-octs:mimes:html (en:json:html jon))
-    ==
-  :^    %pass
-      /send/(scot %uv i)/(scot %da round)/(scot %ud k)
-    %arvo
-  [%i %request request *outbound-config:iris]
+  [%pass wire %arvo %i %request request *outbound-config:iris]
+::
+++  bearer
+  |=  c=config:km
+  ^-  header-list:http
+  ~[['authorization' (cat 3 'Bearer ' key.c)]]
+::
+++  post-json
+  |=  [=wire c=config:km url=@t jon=json]
+  ^-  card
+  %+  fetch  wire
+  :*  %'POST'
+      url
+      [['content-type' 'application/json'] (bearer c)]
+      `(as-octs:mimes:html (en:json:html jon))
+  ==
+::
+::  no footer: the relay appends its own unsubscribe footer and RFC-8058
+::  headers per recipient, and drops whoever has no consent record
+++  send-post
+  |=  [c=config:km i=id:keep round=@da again=? pay=[sub=@t txt=@t htm=@t] to=(list addr)]
+  ^-  card
+  %-  post-json
+  :^    /send/(scot %uv i)/(scot %da round)
+      c
+    (send-url:kml relay.c)
+  %-  pairs:enjs:format
+  :~  ['patp' s+(scot %p our.bowl)]
+      ['id' s+(scot %uv i)]
+      ['again' b+again]
+      ['to' a+(turn to |=(a=addr ^-(json s+a)))]
+      ['subject' s+sub.pay]
+      ['text' s+txt.pay]
+      ['html' s+htm.pay]
+  ==
+::
+++  sync
+  |=  [c=config:km i=id:keep round=@da]
+  ^-  card
+  (fetch /sync/(scot %uv i)/(scot %da round) [%'GET' (readers-url:kml relay.c) (bearer c) ~])
+::
+++  poll-job
+  |=  [c=config:km i=id:keep round=@da job=@t]
+  ^-  card
+  (fetch /poll/(scot %uv i)/(scot %da round) [%'GET' (job-url:kml relay.c job) (bearer c) ~])
+::
+::  what a look at the relay fetches: who confirmed, and our proof token
+++  ask
+  |=  c=config:km
+  ^-  (list card)
+  :~  (fetch /readers [%'GET' (readers-url:kml relay.c) (bearer c) ~])
+      (fetch /proof [%'GET' (token-url:kml relay.c) (bearer c) ~])
+  ==
+::
+++  tell-name
+  |=  [c=config:km n=@t]
+  ^-  card
+  (post-json /profile c (profile-url:kml relay.c) (pairs:enjs:format ~[['name' s+n]]))
+::
+++  verify
+  |=  [c=config:km url=@t]
+  ^-  card
+  (post-json /verify c (verify-url:kml relay.c) (pairs:enjs:format ~[['source_url' s+url]]))
+::
+::  the same file the sieve read, for the relay to re-confirm under its
+::  own rules: substack's format, a proven source, one mail per address
+++  hand-import
+  |=  [c=config:km raw=@t src=@t]
+  ^-  card
+  (post-json /import c (import-url:kml relay.c) (pairs:enjs:format ~[['source_url' s+src] ['csv' s+raw]]))
 ::
 ::  ---- http ------------------------------------------------------------------
 ::

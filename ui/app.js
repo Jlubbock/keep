@@ -944,11 +944,13 @@
         if (warn && !window.confirm(warn)) return;
         var parts = split(src);
         send.textContent = '…';
+        var mailBox = document.getElementById('k-mail');
         var fields = {
           what: editId ? 'edit' : 'publish',
           body: parts.body,
           title: parts.title,
-          to: audience.value
+          to: audience.value,
+          mail: mailBox && mailBox.checked ? 'on' : ''
         };
         if (editId) fields.id = editId.value;
         fetch('/keep/write', {
@@ -1053,7 +1055,7 @@
     Array.prototype.slice.call(document.querySelectorAll('form.k-mail-form')).forEach(function (f) {
       f.addEventListener('submit', function (e) {
         var n = f.getAttribute('data-n') || '?';
-        var msg = 'mail this to ' + n + (n === '1' ? ' reader' : ' readers') + '? it cannot be recalled.';
+        var msg = 'email this to ' + n + (n === '1' ? ' reader' : ' readers') + '? it cannot be recalled.';
         if (!window.confirm(msg)) e.preventDefault();
       });
     });

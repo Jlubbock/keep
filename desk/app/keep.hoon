@@ -291,10 +291,11 @@
     ?-    -.act
     ::
     ::  ---- publishing --------------------------------------------------------
-        ?(%post %backpost)
+        ?(%post %mailpost %backpost)
       =/  [wen=@da =page tit=(unit @t) trm=@t to=(set lyst)]
         ?-  -.act
           %post      [now.bowl page.act title.act terms.act to.act]
+          %mailpost  [now.bowl page.act title.act terms.act to.act]
           %backpost  [wen.act page.act title.act terms.act to.act]
         ==
       =/  hash=@uvH      (sham page)
@@ -327,8 +328,11 @@
           %-  manx-response:gen:srv
           (public-page:vw-bare [our.bowl entry `hed %.y %.n `url ~ ~] page ~)
         ~[art (index-card:hc new-sites new-posts) (linkmap-card:hc new-sites)]
+      =/  mail=(list card)
+        ?.  ?=(%mailpost -.act)  ~
+        (mail-self:hc [%send id %.n])
       :_  this(posts new-posts, sites new-sites)
-      :(weld grows cards web (give:hc [%posted id entry]))
+      :(weld grows cards web (give:hc [%posted id entry]) mail)
     ::
         %keep
       ?:  =(our.bowl ship.entry.act)  `this
@@ -1031,14 +1035,25 @@
   =/  st  mail-status
   `[set-up.st readers.st (~(get by stat.st) u.i)]
 ::
+::  every reader on the ship, marked by whether the relay holds their consent
 ++  mail-roll
-  ^-  (list [addr:km @da])
+  ^-  (list [addr:km @da ?])
+  =/  us  (scot %p our.bowl)
+  =/  wen  (scot %da now.bowl)
+  =/  ss  .^((map addr:km @da) %gx /[us]/keep-mail/[wen]/subs/noun)
+  =/  vw  .^((unit readers:km) %gx /[us]/keep-mail/[wen]/view/noun)
+  =/  ok  ?~(vw *(set addr:km) confirmed.u.vw)
   %+  sort
-    %~  tap  by
-    .^  (map addr:km @da)  %gx
-    /(scot %p our.bowl)/keep-mail/(scot %da now.bowl)/subs/noun
-    ==
-  aor
+    (turn ~(tap by ss) |=([a=addr:km w=@da] [a w (~(has in ok) a)]))
+  |=([a=[addr:km @da ?] b=[addr:km @da ?]] (aor -.a -.b))
+::
+::  the editor's email box: the confirmed count, once mail is set up
+++  mail-readers
+  ^-  (unit @ud)
+  ?.  mail-live  ~
+  =/  st  mail-status
+  ?.  set-up.st  ~
+  `readers.st
 ::
 ++  mailed-now
   ^-  (map id:keep @da)
@@ -1392,7 +1407,7 @@
     (paint rid (fresh-asset 'text/javascript' (as-octs:mimes:html app-js)))
   ::
       [%keep ~]        (render rid (feed-page:vw feed-rows))
-      [%keep %write ~]  (render rid (write-page:vw ~ cands))
+      [%keep %write ~]  (render rid (write-page:vw ~ cands mail-readers))
   ::
   ::  id first, ship last, like /keep/read: eyre makes its ext from the
   ::  final dot of the LAST segment, and a @uv id is full of dots
@@ -1410,7 +1425,7 @@
       ?:  (~(has in on) %public)  "everyone"
       =/  to=(list lyst)  ~(tap in on)
       ?~(to "everyone" (trip i.to))
-    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud] cands))
+    (render rid (write-page:vw `[(trip (scot %uv u.i)) src aud] cands mail-readers))
   ::
       [%keep %comments ~]  (render rid (comments-page:vw talk-rules))
   ::
@@ -1421,7 +1436,11 @@
       [%keep %sync ~]  (render rid (sync-page:vw sync-rows sync-previews))
   ::
       [%keep %mail ~]
-    (render rid (mail-page:vw ?.(mail-live ~ `mail-status) ~))
+    ?.  mail-live  (render rid (mail-page:vw ~ ~))
+    =/  st  mail-status
+    =/  small=?  (lte (add readers.st waiting.st) 200)
+    %+  weld  (mail-self [%refresh ~])
+    (render rid (mail-page:vw `st ?.(small ~ `mail-roll)))
   ::
   ::  the full address list, only on request: it can be thousands of rows
       [%keep %mail %readers ~]
@@ -1541,10 +1560,14 @@
     =/  aud=(unit lyst)
       ?:(=('everyone' to) `%public (slaw %tas to))
     ?~  aud  ~
+    ::  the email box on the editor: only a public post can be mailed
+    =/  mail=?  &(=('on' (arg q 'mail')) =(%public u.aud))
+    =/  title=(unit @t)  ?:(=('' tit) ~ `tit)
     %-  self
-    :^  %post  [%md bod]
-      ?:(=('' tit) ~ `tit)
-    ['' (sy ~[u.aud])]
+    ^-  action:keep
+    ?:  mail
+      [%mailpost [%md bod] title '' (sy ~[u.aud])]
+    [%post [%md bod] title '' (sy ~[u.aud])]
   ::
   ?:  =('edit' what)
     ?~  i=(slaw %uv (arg q 'id'))  ~
@@ -1680,14 +1703,27 @@
     ?~  i=(slaw %uv (arg q 'id'))  ~
     (mail-self [%send u.i %.n])
   ::
+  ?:  =('mail-refresh' what)
+    (mail-self [%refresh ~])
+  ::
+  ?:  =('mail-name' what)
+    (mail-self [%name (arg q 'name')])
+  ::
+  ?:  =('mail-reset' what)
+    (mail-self [%reset ~])
+  ::
+  ?:  =('mail-verify' what)
+    =/  url=@t  (arg q 'url')
+    ?:  =('' url)  ~
+    (mail-self [%verify url])
+  ::
   ?:  =('mail-import' what)
     =/  raw=@t  (arg q 'emails')
     ?:  =('' raw)  ~
-    (mail-self [%import raw])
+    (mail-self [%import raw (arg q 'url')])
   ::
   ?:  =('mail-remove' what)
     =/  a=@t  (arg q 'addr')
-    =?  a  =('' a)  (arg q 'emails')
     ?:  =('' a)  ~
     (mail-self [%remove a])
   ~

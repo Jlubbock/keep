@@ -193,6 +193,8 @@ button.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
 }
 .k-mail-hint + .k-mail-hint { margin-top: -8px; }
 .k-mail-row { display: flex; gap: 28px; align-items: baseline; flex-wrap: wrap; }
+.k-subscribe { display: flex; gap: 18px; align-items: baseline; margin: 0 0 22px; }
+.k-subscribe .k-mail-in { max-width: 32ch; }
 /* the file widget's baseline is its "Choose file" label — align on that,
    never centre: centring floats the verb off the row's text line */
 .k-mail-import { align-items: baseline; }
@@ -634,3 +636,6 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
   .k-row-in button.k-re, .k-row-in button.k-del { margin-left: -2px; }
   .k-back { padding: 10px; margin: -10px -10px 34px; }
 }
+
+.k-mail-opt { font-size: 13px; color: #8a857c; display: inline-flex; gap: 6px; align-items: center; margin-right: 18px; cursor: pointer; }
+.k-mail-bad { color: #a03d2e; }

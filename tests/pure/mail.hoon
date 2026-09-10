@@ -1,7 +1,8 @@
-::  layer A — the mail pipeline: csv to addresses, markdown to html.
+::  layer A — the mail pipeline: csv to addresses, subjects, the relay's
+::  urls and answers, markdown to html.
 ::
 ::    Exact-output assertions throughout: each is its own positive control
-::    (a sieve or renderer that produced nothing would fail every one).
+::    (a sieve, parser or renderer that produced nothing would fail every one).
 ::
 /+  *test, kml=keep-mail, mh=md-html
 |%
@@ -67,38 +68,7 @@
   ^-  tang
   (expect-eq !>('a new post') !>((subject:kml ~ '')))
 ::
-::  ---- batches ---------------------------------------------------------------
-::
-++  test-chunks
-  ^-  tang
-  =/  as=(list @t)  (turn (gulf 1 120) |=(n=@ud (crip "u{(a-co:co n)}@x.com")))
-  ;:  weld
-    (expect-eq !>(~[50 50 20]) !>((turn (chunks:kml as) lent)))
-    (expect-eq !>(`(list (list @t))`~) !>((chunks:kml ~)))
-    (expect-eq !>(`(list (list @t))`~[~['a@x.com']]) !>((chunks:kml ~['a@x.com'])))
-  ==
-::
-++  test-verdicts-batch
-  ^-  tang
-  =/  want=(unit [(list @t) (list @t) (list @t)])
-    `[~['a@x.com' 'b@x.com'] ~['c@x.com'] ~['d@x.com']]
-  =/  body=@t
-    '''
-    {"requested": 4, "sent": ["a@x.com", "b@x.com"],
-     "dropped": [{"to": "c@x.com", "reason": "unsubscribed"}],
-     "retry": [{"to": "d@x.com", "reason": "throttle"}],
-     "quota_remaining": 150, "ok": true}
-    '''
-  (expect-eq !>(want) !>((verdicts:kml body)))
-::
-++  test-verdicts-single-form-is-none
-  ^-  tang
-  ;:  weld
-    (expect-eq !>(*(unit [(list @t) (list @t) (list @t)])) !>((verdicts:kml '{"ok": true, "recipients": 1}')))
-    (expect-eq !>(*(unit [(list @t) (list @t) (list @t)])) !>((verdicts:kml 'not json')))
-  ==
-::
-::  ---- urls ------------------------------------------------------------------
+::  ---- the relay's urls ------------------------------------------------------
 ::
 ++  test-clean-url
   ^-  tang
@@ -113,9 +83,115 @@
 ++  test-conf-defaults
   ^-  tang
   ;:  weld
-    (expect-eq !>(default-relay:kml) !>(relay:(conf-defaults:kml ['' 'k'])))
+    (expect-eq !>('https://keep-posting.com') !>(relay:(conf-defaults:kml ['' 'k'])))
     (expect-eq !>('k') !>(key:(conf-defaults:kml ['' 'k'])))
-    (expect-eq !>('https://127.0.0.1:8099/send') !>(relay:(conf-defaults:kml ['127.0.0.1:8099/send' 'k'])))
+    (expect-eq !>('https://127.0.0.1:8099') !>(relay:(conf-defaults:kml ['127.0.0.1:8099' 'k'])))
+  ==
+::
+::  a %3 config held the send endpoint itself; the base is what survives
+++  test-base-of
+  ^-  tang
+  ;:  weld
+    (expect-eq !>('https://keep-posting.com') !>((base-of:kml 'https://keep-posting.com/api/mail/send')))
+    (expect-eq !>('http://127.0.0.1:8099') !>((base-of:kml 'http://127.0.0.1:8099')))
+    (expect-eq !>('http://x/send') !>((base-of:kml 'http://x/send')))
+  ==
+::
+++  test-urls
+  ^-  tang
+  ;:  weld
+    (expect-eq !>('https://k.com/api/mail/send') !>((send-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/readers') !>((readers-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/import') !>((import-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/import/verify') !>((verify-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/import/token') !>((token-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/profile') !>((profile-url:kml 'https://k.com')))
+    (expect-eq !>('https://k.com/api/mail/jobs/j1') !>((job-url:kml 'https://k.com' 'j1')))
+    (expect-eq !>('https://k.com/subscribe/~zod') !>((subscribe-url:kml 'https://k.com' ~zod)))
+  ==
+::
+::  ---- the relay's answers ---------------------------------------------------
+::
+++  test-job-of
+  ^-  tang
+  =/  want=(unit [@t @ud (list @t) (list @t)])
+    `['ab12' 40 ~['c@x.com' 'd@x.com'] ~['e@x.com']]
+  ;:  weld
+    %+  expect-eq
+      !>(want)
+    !>  %-  job-of:kml
+        '''
+        {"job": "ab12", "status": "queued", "recipients": 40,
+         "dropped": [{"to": "c@x.com", "reason": "unsubscribed"}, {"to": "d@x.com", "reason": "invalid"}],
+         "unconfirmed": ["e@x.com"], "quota": 500}
+        '''
+    (expect-eq !>(*(unit [@t @ud (list @t) (list @t)])) !>((job-of:kml '{"detail": "missing or unknown email key"}')))
+    (expect-eq !>(*(unit [@t @ud (list @t) (list @t)])) !>((job-of:kml 'not json')))
+  ==
+::
+++  test-job-state
+  ^-  tang
+  ;:  weld
+    %+  expect-eq
+      !>(`(unit [@t @ud @ud @ud (unit @t)])``['done' 39 1 0 ~])
+    !>((job-state:kml '{"job": "ab12", "status": "done", "requested": 40, "sent": 39, "failed": 1, "queued": 0, "error": null}'))
+    %+  expect-eq
+      !>(`(unit [@t @ud @ud @ud (unit @t)])``['failed' 0 0 0 `'ship released'])
+    !>((job-state:kml '{"status": "failed", "error": "ship released"}'))
+    (expect-eq !>(*(unit [@t @ud @ud @ud (unit @t)])) !>((job-state:kml '{"ok": true}')))
+  ==
+::
+++  test-readers-of
+  ^-  tang
+  ;:  weld
+    %+  expect-eq
+      !>(`(unit [(list @t) @ud])``[~['a@x.com' 'b@x.com'] 3])
+    !>((readers-of:kml '{"active": ["a@x.com", "b@x.com"], "pending": 3, "subscribe_url": "x", "manage_url": "y"}'))
+    (expect-eq !>(*(unit [(list @t) @ud])) !>((readers-of:kml '{"detail": "nope"}')))
+  ==
+::
+++  test-proof-of
+  ^-  tang
+  ;:  weld
+    %+  expect-eq
+      !>(`(unit [@t (unit @t)])``['keep-verify-abc' `'https://x.substack.com/about'])
+    !>((proof-of:kml '{"token": "keep-verify-abc", "verified_url": "https://x.substack.com/about", "verified_at": 1.0}'))
+    %+  expect-eq
+      !>(`(unit [@t (unit @t)])``['keep-verify-abc' ~])
+    !>((proof-of:kml '{"token": "keep-verify-abc", "verified_url": null, "verified_at": null}'))
+    (expect-eq !>(*(unit [@t (unit @t)])) !>((proof-of:kml '{"detail": "no"}')))
+  ==
+::
+++  test-import-of
+  ^-  tang
+  ;:  weld
+    (expect-eq !>(`(unit @ud)``405) !>((import-of:kml '{"import_id": "x", "rows": 7009, "pending": 405, "dropped": {"inactive": 6595}}')))
+    (expect-eq !>(*(unit @ud)) !>((import-of:kml '{"detail": "not a Substack subscriber export"}')))
+  ==
+::
+::  a refusal becomes a sentence the writer can act on
+++  test-why-of
+  ^-  tang
+  ;:  weld
+    %+  expect-eq
+      !>('Keep doesn\'t recognize this ship\'s email key — nothing went out')
+    !>((why-of:kml 401 '{"detail": "missing or unknown email key"}'))
+    %+  expect-eq
+      !>('Keep paused your sending for review — nothing went out')
+    !>((why-of:kml 403 '{"detail": "sending is suspended pending review (writer suspended: bounce 6%)"}'))
+    %+  expect-eq
+      !>('Keep paused your sending for review — nothing went out')
+    !>((why-of:kml 0 'sending is suspended pending review'))
+    %+  expect-eq
+      !>('Keep answered 422: subject and text are required')
+    !>((why-of:kml 422 '{"detail": "subject and text are required"}'))
+  ==
+::
+++  test-detail-of
+  ^-  tang
+  ;:  weld
+    (expect-eq !>('bad key') !>((detail-of:kml '{"detail": "bad key"}')))
+    (expect-eq !>('<html>') !>((detail-of:kml '<html>')))
   ==
 ::
 ::  ---- markdown -> html ------------------------------------------------------

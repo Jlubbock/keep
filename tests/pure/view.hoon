@@ -48,12 +48,12 @@
 ::  the write page ships the picker's candidates as data attributes
 ++  test-write-page-carries-candidates
   ^-  tang
-  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd]))
+  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd] ~))
   (expect-eq !>(%.y) !>(?=(^ (find "data-id=\"0v5\"" out))))
 ::
 ::  a gated candidate says so — the leak guard reads this flag
 ++  test-candidate-marks-gated
   ^-  tang
-  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd]))
+  =/  out=tape  (en-xml:html (write-page:vw ~ ~[cnd] ~))
   (expect-eq !>(%.y) !>(?=(^ (find "data-pub=\"n\"" out))))
 --
