@@ -32,6 +32,11 @@ await h.poke(peer, `[%sub ${h.HOST}]`);
 s.check('C1.3 a follower sees the headline',
   await h.got(h.until('peer to wall the entry', () => has(peer, '/keep', TITLE), { timeout: 60000 })));
 
+//  the one poke following sends: the author learns who reads them
+s.check('C1.3b and the author learns who follows',
+  await h.until('host to list peer as a fan', () => h.fans(host, h.PEER))
+    .then(() => true, () => false));
+
 const feed = (await peer.get('/keep')).body;
 const id = new RegExp(`/keep/read/(0v[^/"]+)/${h.HOST}`).exec(feed)?.[1];
 s.check('C1.4 addressed by content hash', !!id, id ?? 'no read link on the feed');

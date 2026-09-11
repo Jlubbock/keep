@@ -77,9 +77,14 @@ restarts, one @ud of state, nothing to negotiate. backfill and tailing are
 the same code path — start at revision 1, existing revisions answer from
 cache, the first one that does not parks, and you are subscribed.
 
-ames carries exactly two things, both once per relationship and never per
-post: %announce (are you running %keep) and %invite (here is your address
-for my list). everything else is remote scry.
+ames carries four things, each once per relationship and never per post:
+%announce (are you running %keep), %invite (here is your address for my
+list), and %follow / %unfollow (I read your index — so the author can see
+who follows, which remote scry never tells them). everything else is remote
+scry.
+
+%follow and %unfollow ride an unacked wire. a %keep older than 2026-09 nacks
+them, and a nack from those must not read as "not running %keep".
 
 both are pokes any ship can send, so neither may subscribe us on its own.
 %announce is ignored unless the sender is a pals target. %invite parks in

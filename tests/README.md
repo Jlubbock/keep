@@ -121,6 +121,8 @@ agent already held:
   "no warning" proves *unjudged*, never *verified*.
 - `/x/follows` — tailing is mechanical, following is what puts a ship in your
   feed. C4.4 is the difference.
+- `/x/fans` — who has sent us `%follow`. C1.3b is the only way to see that the
+  poke crossed; the follows page renders the same set.
 
 ## Staleness
 

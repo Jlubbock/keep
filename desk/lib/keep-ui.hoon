@@ -25,6 +25,7 @@
       pals=(list ship)
       subs=(set ship)                    ::  whose index we tail: mechanical
       follows=(set ship)                 ::  who we follow: the feed
+      fans=(set ship)                    ::  who told us they follow
       off=(set ship)                     ::  confirmed not running %keep
       rolls=(list [=lyst:keep members=(set ship)])
       pending=(list [=feed:keep =lyst:keep])
@@ -77,6 +78,22 @@
   |=  r=row
   ^-  ship
   ?~(hed.r ship.entry.r who.u.hed.r)
+::
+::  a hosted copy names its author in the head and its host in the entry;
+::  they differ exactly when someone reposted
+++  reposter
+  |=  r=row
+  ^-  (unit ship)
+  ?.  =(via.r ship.entry.r)  `via.r
+  ?:  =(ship.entry.r (author r))  ~
+  `ship.entry.r
+::
+++  ships  |=(s=(set ship) ^-((list ship) (sort ~(tap in s) lth)))
+::
+++  ship-link
+  |=  [who=ship cls=tape]
+  ^-  manx
+  ;a(href "/keep/ship/{(pp who)}", class "{cls}"): {(pp who)}
 ::
 ::  id first, ship last: eyre splits the LAST segment on its final dot to
 ::  make pork's ext, and a @uv id is full of dots
@@ -154,35 +171,32 @@
     ;div.k-mark: keep
     ;div.k-nav
       ;a(href "/keep", class "{(sel %feed)}"): feed
-      ;a(href "/keep/ship/{(pp our.v)}", class "mono {(sel %mine)}"): {(pp our.v)}
       ;a(href "/keep/write", class "{(sel %write)}"): write
+      ;a(href "/keep/ship/{(pp our.v)}", class "mono {(sel %mine)}"): {(pp our.v)}
+      ;a(href "/keep/follows", class "{(sel %follows)}"): follows
       ;a(href "/keep/lists", class "{(sel %lists)}"): lists
       ;a(href "/keep/comments", class "{(sel %comments)}"): comments
       ;a(href "/keep/sync", class "{(sel %sync)}"): sync
       ;a(href "/keep/mail", class "{(sel %mail)}"): mail
     ==
-    ;div.k-pals
-      ;form(method "post", action "/keep", class "k-one k-find-form")
-        ;+  (hidden "what" "go")
-        ;+  (hidden "back" "/keep")
-        ;input(type "text", name "who", class "k-find", placeholder "~sampel-palnet", autocomplete "off");
-      ==
-      ;div.k-pals-label: pals
-      ;*  %+  turn  pals.v
-          |=  who=ship
-          ;a(href "/keep/ship/{(pp who)}"): {(pp who)}
+    ;form(method "post", action "/keep", class "k-one k-find-form")
+      ;+  (hidden "what" "go")
+      ;+  (hidden "back" "/keep")
+      ;input(type "text", name "who", class "k-find", placeholder "~sampel-palnet", autocomplete "off");
     ==
     ;div.k-clock: {(day now.v)}
   ==
 ::
 ::  ---- rows ----------------------------------------------------------------
 ::
+::  a word, not a glyph: a pale ↻ and a dark ↻ were the offer and the fact
 ++  repost-control
-  |=  [r=row back=tape label=tape]
+  |=  [r=row back=tape]
   ^-  (list manx)
-  ?:  |(kept.r =(our.v ship.entry.r))
+  ?:  =(our.v (author r))  ~
+  ?:  kept.r
     :_  ~
-    ;span(class "k-re on", title "reposted"): {label}
+    ;span(class "k-re on", title "you reposted this"): ↻ reposted
   ::  not repostable is not a control: render nothing, not a dead glyph
   ?.  pub.r  ~
   :_  ~
@@ -191,7 +205,25 @@
     ;+  (hidden "who" (pp ship.entry.r))
     ;+  (hidden "id" (id-of entry.r))
     ;+  (hidden "back" back)
-    ;button(type "submit", class "k-link k-re", title "repost"): {label}
+    ;button(type "submit", class "k-link k-re", title "repost to everyone"): ↻ repost
+  ==
+::
+++  via-line
+  |=  [pre=tape who=ship]
+  ^-  manx
+  ;div.k-via
+    ;span: ↻ {pre}
+    ;+  (ship-link who "")
+  ==
+::
+++  follow-form
+  |=  [who=ship what=tape label=tape cls=tape back=tape]
+  ^-  manx
+  ;form(method "post", action "/keep", style "display:inline")
+    ;+  (hidden "what" what)
+    ;+  (hidden "who" (pp who))
+    ;+  (hidden "back" back)
+    ;button(type "submit", class "k-link {cls}"): {label}
   ==
 ::
 ++  edit-control
@@ -263,25 +295,25 @@
 ++  feed-row
   |=  [r=row back=tape]
   ^-  manx
+  =/  by=(unit ship)  (reposter r)
   ;div.k-row
-    ;*  ?:  =(via.r ship.entry.r)  ~
-        :_  ~
-        ;div.k-via: ↻ {(pp via.r)}
+    ;*  ?~  by  ~
+        ~[(via-line "reposted by" u.by)]
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
-      ;a(href "/keep/ship/{(pp (author r))}", class "k-who"): {(pp (author r))}
+      ;+  (ship-link (author r) "k-who")
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
-      ;*  (repost-control r back "↻")
+      ;*  (repost-control r back)
     ==
   ==
 ::
 ++  user-row
   |=  [r=row back=tape mailed=(unit @da)]
   ^-  manx
+  =/  by=(unit ship)  (reposter r)
   ;div.k-row
-    ;*  ?:  =(via.r ship.entry.r)  ~
-        :_  ~
-        ;div.k-via: ↻ {(pp (author r))}
+    ;*  ?~  by  ~
+        ~[(via-line "reposted from" (author r))]
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;*  (on-tag r "")
@@ -532,11 +564,15 @@
       ;div.k-ship: {(pp who)}
       ;*  ?:  =(who our.v)  ~
           :_  ~
-          ;form(method "post", action "/keep", style "display:inline")
-            ;+  (hidden "what" ?:(following "unfollow" "follow"))
-            ;+  (hidden "who" (pp who))
-            ;+  (hidden "back" back)
-            ;button(type "submit", class "k-link k-follow"): {?:(following "following" "follow")}
+          ;div.k-head-acts
+            ;*  ?.  (~(has in fans.v) who)  ~
+                :_  ~
+                ;span.k-tag: follows you
+            ;*  ?.  following
+                  ~[(follow-form who "follow" "follow" "k-follow" back)]
+                :~  ;span(class "k-follow on"): ✓ following
+                    (follow-form who "unfollow" "unfollow" "k-follow" back)
+                ==
           ==
     ==
     ;div.k-rows
@@ -564,6 +600,63 @@
         ==
   ==
 ::
+++  person
+  |=  [who=ship tags=(list tape) act=(list manx)]
+  ^-  manx
+  ;div.k-person
+    ;+  (ship-link who "k-person-who")
+    ;*  %+  turn  tags
+        |=  t=tape
+        ;span.k-tag: {t}
+    ;*  act
+  ==
+::
+::  a count at rest, the names on click: one follower and thirty look the
+::  same as a list, and the number is what you check at a glance
+++  fold
+  |=  [head=tape none=tape rows=(list manx)]
+  ^-  manx
+  ;details.k-fold
+    ;summary.k-rules-head: {head} · {(a-co:co (lent rows))}
+    ;*  ?^  rows  rows
+        :_  ~
+        ;div.k-hint: {none}
+  ==
+::
+++  follows-page
+  ^-  manx
+  =/  back=tape  "/keep/follows"
+  =/  pals-on-keep=(list ship)
+    (skip pals.v |=(w=ship (~(has in follows.v) w)))
+  %+  shell  %follows
+  ;div.k-col
+    ;+  %^  fold  "following"
+          "nobody yet. find a ship in the sidebar, or follow one from its page."
+        %+  turn  (ships follows.v)
+        |=  who=ship
+        %^  person  who
+          ;:  weld
+            ?.((~(has in fans.v) who) ~ ~["follows you"])
+            ?.((~(has in off.v) who) ~ ~["no keep"])
+          ==
+        ~[(follow-form who "unfollow" "unfollow" "k-follow" back)]
+    ;+  %^  fold  "followers"
+          "nobody yet. a ship that follows you shows up here."
+        %+  turn  (ships fans.v)
+        |=  who=ship
+        ?.  (~(has in follows.v) who)
+          (person who ~ ~[(follow-form who "follow" "follow back" "k-follow" back)])
+        %^  person  who  ~
+        :_  ~
+        ;span(class "k-follow on"): ✓ following
+    ;*  ?~  pals-on-keep  ~
+        :_  ~
+        %^  fold  "pals on keep"  ""
+        %+  turn  pals-on-keep
+        |=  who=ship
+        (person who ~ ~[(follow-form who "follow" "follow" "k-follow" back)])
+  ==
+::
 ++  read-page
   |=  [r=row bod=(unit page) tlk=(unit tv) talky=? mail=(unit mailv)]
   ^-  manx
@@ -582,8 +675,14 @@
     ::  itself, so a long address never drags the verbs around.
     ;div.k-meta
       ;div.k-meta-row
-        ;a(href "/keep/ship/{(pp (author r))}"): {(pp (author r))}
+        ;+  (ship-link (author r) "")
         ;span.when: {?~(hed.r "" (day wen.u.hed.r))}
+        ;*  ?~  by=(reposter r)  ~
+            :_  ~
+            ;span.k-meta-re
+              ;span: ↻ reposted by
+              ;+  (ship-link u.by "")
+            ==
         ;*  (on-tag r "to ")
         ;*  ?~  site.r  ~
             :_  ~
@@ -591,10 +690,7 @@
       ==
       ;*  =/  acts=(list manx)
             ;:  weld
-              ?:  =(our.v ship.entry.r)  ~
-              %^  repost-control  r  (read-url entry.r)
-              ?:(kept.r "↻ reposted" "↻ repost")
-            ::
+              (repost-control r (read-url entry.r))
               (edit-control r "edit")
               (delete-control r "/keep/ship/{(pp our.v)}" "delete")
               (mail-control r mail (read-url entry.r))
@@ -919,7 +1015,11 @@
   ;div.k-mail-sec
     ;div.k-rules-head: readers
     ;p.k-mail-lede: {line}
-    ;div.k-mail-hint: Add readers one at a time or import a list below. To use the relay, every reader must confirm: each address is emailed once, and only those who click are mailed. If we detect mail going to people who never subscribed, your access to the relay is limited.
+    ;div.k-mail-hint
+      ;+  ;/  ?.  set-up.s
+                "Once email is connected you can add readers one at a time or import a list here. Every reader must confirm: each address is emailed once, and only those who click are mailed."
+              "Add readers one at a time or import a list below. To use the relay, every reader must confirm: each address is emailed once, and only those who click are mailed. If we detect mail going to people who never subscribed, your access to the relay is limited."
+    ==
     ;*  ?.  set-up.s  ~
         :_  ~
         ;form(method "post", action "/keep", class "k-one k-mail-row")

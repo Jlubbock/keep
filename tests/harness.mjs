@@ -174,6 +174,9 @@ export const tails = async (m, who) =>
 export const follows = async (m, who) =>
   yes(await dojo(m, `(~(has in .^((set @p) %gx /=keep=/follows/noun)) ${who})`));
 
+export const fans = async (m, who) =>
+  yes(await dojo(m, `(~(has in .^((set @p) %gx /=keep=/fans/noun)) ${who})`));
+
 export const holds = async (m, id) =>
   yes(await dojo(m, `(~(has by .^((map @uvH *) %gx /=keep=/posts/noun)) ${id})`));
 

@@ -22,7 +22,7 @@
 +$  item-0  [head=head-0 =page]
 ::
 +$  versioned-state
-  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6)
+  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6 state-7)
 ::
 +$  state-0
   $:  %0
@@ -128,10 +128,28 @@
       keeping=(map entry (set lyst))
       pending=(map feed lyst)
   ==
+::
++$  state-7
+  $:  %7
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry verdict:keep)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)
+      fans=(set ship)                  ::  ships that sent %follow
+  ==
 --
 ::
 %-  agent:dbug
-=|  state-6
+=|  state-7
 =*  state  -
 ^-  agent:gall
 =<
@@ -161,7 +179,9 @@
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
   ::
-  =/  new=state-6
+  =/  new=state-7
+    ?:  ?=(%7 -.old)  old
+    =/  six=state-6
     ?-  -.old
       %6  old
     ::
@@ -233,6 +253,13 @@
           ~  ~  ~
       ==
     ==
+    :*  %7
+        posts.six  lists.six  subs.six
+        wall.six  refs.six  heads.six  seen.six
+        off.six  sites.six  follows.six
+        checked.six  keeping.six  pending.six
+        ~                                ::  fans
+    ==
   :_  this(state new)
   :^    [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
       (index-card:hc sites.new posts.new)
@@ -252,6 +279,7 @@
     [%x %checked ~]  ``noun+!>(checked)
   ::  subs is who we tail, mechanically; follows is whose posts we asked for
     [%x %follows ~]  ``noun+!>(follows)
+    [%x %fans ~]     ``noun+!>(fans)
     [%x %pending ~]  ``noun+!>(pending)
   ::
   ::  for %keep-mail: which lists a post of ours fanned to, so the mailer
@@ -453,12 +481,14 @@
       =/  ss      (~(put by subs) f at)
       =/  ff      (~(put in follows) who.act)
       :_  this(subs ss, follows ff)
-      :-  (tail:hc f at)
+      :+  (tail:hc f at)
+        (tell:hc who.act [%follow ~])
       (give:hc (peers-of:hc ss off))
     ::
         %unsub
       =/  ff  (~(del in follows) who.act)
       :_  this(follows ff)
+      :-  (tell:hc who.act [%unfollow ~])
       (give:hc (peers-of:hc subs off))
     ::
     ::  ---- invites -----------------------------------------------------------
@@ -468,7 +498,8 @@
       =/  ss  (~(put by subs) feed.act first:hc)
       =/  ff  (~(put in follows) ship.feed.act)
       :_  this(subs ss, follows ff, pending pp)
-      :-  (tail:hc feed.act first:hc)
+      :+  (tail:hc feed.act first:hc)
+        (tell:hc ship.feed.act [%follow ~])
       %+  weld
         (give:hc (peers-of:hc ss off))
       (give:hc [%pending (wait-of:hc pp)])
@@ -517,6 +548,14 @@
       :_  this(subs ss, off oo)
       :-  (tail:hc f first)
       (give:hc (peers-of:hc ss oo))
+    ::
+        %follow
+      =/  ff  (~(put in fans) src.bowl)
+      :_(this(fans ff) (give:hc [%fans ff]))
+    ::
+        %unfollow
+      =/  ff  (~(del in fans) src.bowl)
+      :_(this(fans ff) (give:hc [%fans ff]))
     ==
   ==
 ::
@@ -529,7 +568,7 @@
       [%updates ~]   `this
       [%ui %wall ~]   :_(this ~[(gift:hc wall-now:hc)])
       [%ui %lists ~]  :_(this ~[(gift:hc lists-now:hc) (gift:hc pending-now:hc)])
-      [%ui %peers ~]  :_(this ~[(gift:hc peers-now:hc)])
+      [%ui %peers ~]  :_(this ~[(gift:hc peers-now:hc) (gift:hc [%fans fans])])
   ::
       [%ui %body @ *]
     =/  e=entry  [(slav %p i.t.t.path) t.t.t.path]
@@ -554,7 +593,12 @@
     =/  ff      ?:(?=(%hey i.wire) (~(put in follows) who) follows)
     :_  this(subs ss, follows ff)
     :-  (tail:hc f first)
+    %+  weld
+      ?.(?=(%hey i.wire) ~ ~[(tell:hc who [%follow ~])])
     (give:hc (peers-of:hc ss off))
+  ::
+  ::  unacked on purpose — see %follow in /sur/keep
+      [%fan @ ~]  `this
   ::
       [%self ~]
     ?.  ?=(%poke-ack -.sign)  `this
@@ -876,6 +920,12 @@
 ::
 ++  announce  (hail /hey)
 ++  probe     (hail /ask)
+::
+++  tell
+  |=  [who=ship gos=gossip:keep]
+  ^-  card
+  :^  %pass  /fan/(scot %p who)  %agent
+  [[who %keep] %poke %keep-gossip !>(gos)]
 ::
 ++  hail
   |=  pre=path
@@ -1208,7 +1258,7 @@
 ::
 ++  vw  ~(. ui view-now)
 ::
-++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~ ~])
+++  vw-bare  ~(. ui `view:ui`[our.bowl now.bowl ~ ~ ~ ~ ~ ~ ~])
 ::
 ++  view-now
   ^-  view:ui
@@ -1217,6 +1267,7 @@
       live-pals
       (ships-of subs)
       follows
+      fans
       off
       roll-list
       (wait-of pending)
@@ -1407,6 +1458,7 @@
     (paint rid (fresh-asset 'text/javascript' (as-octs:mimes:html app-js)))
   ::
       [%keep ~]        (render rid (feed-page:vw feed-rows))
+      [%keep %follows ~]  (render rid follows-page:vw)
       [%keep %write ~]  (render rid (write-page:vw ~ cands mail-readers))
   ::
   ::  id first, ship last, like /keep/read: eyre makes its ext from the
@@ -1749,6 +1801,7 @@
     %lists    /ui/lists
     %pending  /ui/lists
     %peers    /ui/peers
+    %fans     /ui/peers
     %body     (welp /ui/body/[(scot %p ship.entry.u)] path.entry.u)
   ==
 ::

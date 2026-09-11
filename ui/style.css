@@ -59,15 +59,6 @@ button.k-no:hover, .k-note button:hover, .k-meta button.k-del:hover,
 .k-nav a:hover, .k-nav a.on { color: #171614; }
 .k-nav a.mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 
-.k-pals { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
-.k-pals-label {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: #b3ac9f;
-}
-.k-pals a {
-  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
-}
-.k-pals a:hover { color: #171614; }
 /* every action in this interface is a form. the UA gives <form> a bottom
    margin, and a form that is a flex item is blockified, so `display:inline`
    does not suppress it — it lands as dead space under buttons and throws
@@ -98,9 +89,12 @@ form { margin: 0; }
 .k-row { border-bottom: 1px solid #eeeae1; padding: 18px 0; }
 .k-row-in { display: flex; align-items: baseline; gap: 20px; }
 .k-via {
+  display: flex; gap: 5px; align-items: baseline;
   font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-  color: #b3ac9f; margin-bottom: 5px;
+  color: #8a857c; margin-bottom: 6px;
 }
+.k-via a { color: #8a857c; }
+.k-via a:hover { color: #171614; }
 .k-title {
   font-size: 20px; line-height: 1.35; font-weight: 500;
   letter-spacing: -0.005em; flex: 1;
@@ -127,18 +121,22 @@ form { margin: 0; }
   color: #8a857c; white-space: nowrap;
 }
 .k-re {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #b3ac9f;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  white-space: nowrap;
 }
-/* the row's 20px gap reads tight against a right-aligned date; nudge the
-   glyph only in the rows, leaving the reader's meta line alone */
-.k-row-in .k-re { margin-left: 8px; font-size: 16px; }
 .k-re:hover { color: #171614; }
 .k-re.on { color: #171614; cursor: default; }
+button.k-re {
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; text-decoration-color: #d8d2c6;
+}
+button.k-re:hover { text-decoration-color: currentColor; }
 .k-del {
   font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #b3ac9f;
 }
 .k-del:hover { color: #8a2f1f; }
 .k-row-in .k-del { margin-left: 8px; font-size: 16px; }
+.k-meta-re { display: inline-flex; gap: 5px; align-items: baseline; }
 /* word deletes (delete · delete list · cancel · untrack) sit with the
    12px verbs; only the bare × keeps glyph size */
 .k-meta button.k-del, .k-members button.k-del, .k-member button.k-del {
@@ -227,10 +225,46 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
   padding-bottom: 22px; border-bottom: 1px solid #e8e3d9;
 }
 .k-ship { font-family: 'IBM Plex Mono', monospace; font-size: 17px; }
+.k-head-acts { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
 .k-follow {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+  white-space: nowrap;
 }
 .k-follow:hover { color: #171614; }
+/* the state, not the verb: no rule, no hover, ink */
+.k-follow.on { color: #171614; text-decoration: none; cursor: default; }
+.k-tag {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #c3bcae;
+  white-space: nowrap;
+}
+
+/* ---- follows (/keep/follows) ------------------------------------------ */
+
+.k-fold { border-bottom: 1px solid #eeeae1; padding: 20px 0; }
+.k-fold summary { cursor: pointer; list-style: none; user-select: none; }
+.k-fold summary::-webkit-details-marker { display: none; }
+.k-fold summary::before {
+  content: '\25B8'; display: inline-block; width: 14px; color: #c3bcae;
+}
+.k-fold[open] summary::before { content: '\25BE'; }
+.k-fold summary:hover { color: #8a857c; }
+.k-fold > .k-person, .k-fold > .k-hint { margin-left: 14px; }
+.k-person {
+  display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+  padding: 6px 0;
+}
+.k-person-who {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #171614;
+  flex: 1; min-width: 0;
+}
+.k-person-who:hover {
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.k-hint {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #b3ac9f;
+  line-height: 1.5; max-width: 52ch;
+}
 
 .k-note {
   padding: 18px 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
@@ -591,10 +625,8 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
   /* baseline, or the mono patp and the serif links align by box top and
      the smaller mono text rides high */
   .k-nav { flex-direction: row; gap: 16px; align-items: baseline; }
-  /* the pals roll goes, but the finder stays: it is the only way to
-     reach a ship that is not already in the feed */
-  .k-pals-label, .k-pals > a, .k-clock { display: none; }
-  .k-pals { margin-top: 0; flex: 1; min-width: 150px; }
+  .k-clock { display: none; }
+  .k-find-form { flex: 1; min-width: 150px; }
   .k-find { margin-bottom: 0; padding-bottom: 2px; }
   .k-reading .k-side { opacity: 1; }
   .k-main { padding: 40px 20px 80px; }
@@ -610,7 +642,7 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
   .k-title { flex: 1 1 100%; }
   .k-when { width: auto; text-align: left; }
   .k-on { white-space: normal; }
-  .k-row-in .k-re, .k-row-in .k-del { margin-left: 0; }
+  .k-row-in .k-del { margin-left: 0; }
 
   .k-art-title { font-size: 28px; }
   .k-meta-row { gap: 8px 16px; }
@@ -633,7 +665,7 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
   button.k-follow, a.k-edit, .k-to a, .k-reply summary, button.k-say-send {
     padding: 10px; margin: -10px;
   }
-  .k-row-in button.k-re, .k-row-in button.k-del { margin-left: -2px; }
+  .k-row-in button.k-del { margin-left: -2px; }
   .k-back { padding: 10px; margin: -10px -10px 34px; }
 }
 

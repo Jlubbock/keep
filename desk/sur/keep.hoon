@@ -57,6 +57,10 @@
 +$  gossip
   $%  [%announce ~]                  ::  i have %keep installed
       [%invite =lyst =path]          ::  here is your address for my list
+      ::  sent on an unacked wire: an older %keep nacks them, and a nack
+      ::  here must not read as "not running %keep"
+      [%follow ~]                    ::  i read your index
+      [%unfollow ~]
   ==
 ::
 ::  ---- reads: watch %keep-update, or scry ------------------------------------
@@ -70,6 +74,7 @@
       [%body =entry =page okay=(unit verdict)]
       [%lists lists=(map lyst (set ship))]
       [%peers subs=(set ship) off=(set ship)]
+      [%fans fans=(set ship)]        ::  who told us they follow
       [%pending invites=(list [=feed =lyst])]
   ==
 --
