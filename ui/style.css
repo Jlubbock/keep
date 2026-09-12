@@ -226,6 +226,26 @@ a.k-mail:hover { color: #171614; text-decoration-color: currentColor; }
 }
 .k-ship { font-family: 'IBM Plex Mono', monospace; font-size: 17px; }
 .k-head-acts { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+.k-badge {
+  display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap;
+  padding: 14px 0; border-bottom: 1px solid #eeeae1;
+}
+.k-badge[data-proof="yes"] .k-tag { color: #171614; }
+.k-badge[data-proof="no"] .k-tag, .k-badge[data-proof="down"] .k-tag { color: #8a2f1f; }
+
+/* the line to paste: one box, one thing in it, selectable in a click */
+.k-paste {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 12px 0; padding: 14px 16px;
+  border: 1px solid #e8e3d9; background: #f7f4ee;
+}
+.k-paste-lead {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
+}
+.k-paste-line {
+  font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #171614;
+  user-select: all; overflow-wrap: anywhere;
+}
 .k-follow {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8a857c;
   white-space: nowrap;

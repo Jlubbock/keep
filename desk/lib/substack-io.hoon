@@ -4,13 +4,13 @@
 /+  strandio, sk=substack
 =,  strand=strand:spider
 |%
-++  fetch-json
-  |=  url=@t
-  =/  m  (strand ,json)
+++  fetch
+  |=  [url=@t accept=@t]
+  =/  m  (strand ,cord)
   ^-  form:m
   ::  cloudflare judges the runtime's default user-agent; name ourselves
   =/  =request:http
-    [%'GET' url ~[['accept' 'application/json'] ['user-agent' 'keep-sync']] ~]
+    [%'GET' url ~[['accept' accept] ['user-agent' 'keep-sync']] ~]
   ::  cloudflare 429s burst crawls from datacenter ips: back off before failing
   =/  naps=(list @dr)  ~[~s15 ~m1 ~m4]
   |-  ^-  form:m
@@ -24,11 +24,19 @@
   ?.  =(200 code)
     %+  strand-fail:strandio  %substack-http
     ~[leaf+"{(a-co:co code)} on {(trip url)}"]
-  ;<  bod=cord                  bind:m  (extract-body:strandio res)
+  (extract-body:strandio res)
+::
+++  fetch-json
+  |=  url=@t
+  =/  m  (strand ,json)
+  ^-  form:m
+  ;<  bod=cord  bind:m  (fetch url 'application/json')
   ?~  jon=(de:json:html bod)
     %+  strand-fail:strandio  %substack-json
     ~[leaf+"unreadable body from {(trip url)}"]
   (pure:m u.jon)
+::
+++  fetch-html  |=(url=@t (fetch url 'text/html'))
 ::
 ::  every archive entry, newest first. paging stops once a page reaches
 ::  at-or-before `floor`, so an incremental pull stays shallow

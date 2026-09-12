@@ -67,6 +67,14 @@ at all.
   writer's page; and the leak guard: a gated post never reaches the relay,
   controlled by a public one that does. Retries are asserted at the queue;
   the behn wait is thirty minutes by design. Needs the host only.
+- `c9-substack` — substack identity. Tracking a publication is the claim:
+  the host tracks a url, the peer opens the host's page and reads
+  `<url>/about` for itself; the stub counts one read per judging ship, which
+  is what "no verifier" means. A page naming the wrong ship is the control
+  for `%yes`, an erroring one separates `%down` from `%no`, a second look
+  inside a day is served from the cache and a forced one is not, and
+  untracking reaches the peer through its parked keen. Needs the host and
+  the peer.
 - `c4-announce` — installing keep next to `%pals` wires both directions with
   no `%sub` from anybody. **Destructive, and runs last.**
 

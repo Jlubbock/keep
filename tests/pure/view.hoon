@@ -147,7 +147,7 @@
 ::
 ++  test-ship-page-says-follows-you
   ^-  tang
-  =/  out=manx  (user-page:vw-peopled ~bus ~ ~)
+  =/  out=manx  (user-page:vw-peopled ~bus ~ ~ ~)
   ;:  weld
     (expect-eq !>(%.y) !>((has out ">follows you<")))
     (expect-eq !>(%.y) !>((has out ">follow<")))
@@ -156,7 +156,7 @@
 ::
 ++  test-ship-page-offers-unfollow-once-followed
   ^-  tang
-  =/  out=manx  (user-page:vw-peopled ~wes ~ ~)
+  =/  out=manx  (user-page:vw-peopled ~wes ~ ~ ~)
   ;:  weld
     (expect-eq !>(%.y) !>((has out "✓ following")))
     (expect-eq !>(%.y) !>((has out ">unfollow<")))

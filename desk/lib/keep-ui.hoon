@@ -43,8 +43,10 @@
   $:  name=@tas
       url=@t
       last=@da                           ::  newest imported post_date
+      next=@da                           ::  when the clock checks again
       n=@ud                              ::  posts imported so far
       busy=?                             ::  a pull is in flight
+      okay=(unit proof:ks)               ::  does its about page name us
   ==
 ::
 +$  prevrow                              ::  a scan pending, shown, or failed
@@ -52,6 +54,7 @@
       url=@t
       got=(unit scan:ks)
       fail=?
+      okay=(unit proof:ks)
   ==
 --
 ::
@@ -553,8 +556,52 @@
     ==
   ==
 ::
+::  ---- substack identity -----------------------------------------------------
+::
+::  ~ reads as %wait: a claim we have not judged yet is one we are about to
+++  proof-word
+  |=  [p=(unit proof:ks) who=ship]
+  ^-  tape
+  =/  q  (fall p %wait)
+  ?-  q
+    %wait  "Checking the About page"
+    %yes   "✓ Verified · {(pp who)} is named on this Substack's About page"
+    %no    "Unverified"
+    %down  "Unverified — the About page did not answer"
+  ==
+::
+++  claim-line
+  |=  who=ship
+  ^-  tape
+  "This publication is also on Keep (keep-posting.com), as {(pp who)}."
+::
+++  paste-box
+  |=  who=ship
+  ^-  manx
+  ;div.k-paste
+    ;span.k-paste-lead: Keep can't confirm this Substack is yours yet. To verify it, paste this line anywhere on the Substack's About page (Settings → About), then hit Check again:
+    ;code.k-paste-line: {(claim-line who)}
+  ==
+::
+++  check-form
+  |=  [who=ship cls=tape back=tape]
+  ^-  manx
+  (follow-form who "substack-check" "Check again" cls back)
+::
+++  either-way
+  ^-  manx
+  ;span: Syncing works either way; verification only affects how it's shown to readers. A verified badge tells them the ship posting these articles really does control the Substack.
+::
+++  badge-line
+  |=  [who=ship url=@t b=badge:ks]
+  ^-  manx
+  ;div(class "k-badge", data-proof "{(trip proof.b)}")
+    ;a(href "{(trip url)}", class "mono", rel "noopener"): {(trip url)}
+    ;span.k-tag: {(proof-word `proof.b who)}
+  ==
+::
 ++  user-page
-  |=  [who=ship rows=(list row) mailed=(map id:keep @da)]
+  |=  [who=ship rows=(list row) mailed=(map id:keep @da) badges=(list [url=@t badge:ks])]
   ^-  manx
   =/  back=tape  "/keep/ship/{(pp who)}"
   =/  following  (~(has in follows.v) who)
@@ -575,6 +622,8 @@
                 ==
           ==
     ==
+    ;*  %+  turn  badges
+        |=([url=@t b=badge:ks] (badge-line who url b))
     ;div.k-rows
       ;*  %+  turn  rows
           |=  r=row
@@ -924,6 +973,15 @@
   |=  p=prevrow
   ^-  manx
   =/  nm=tape  (trip name.p)
+  =/  label=tape  ?:(=(`%yes okay.p) "import + sync" "sync anyway")
+  =/  track
+    ;form(method "post", action "/keep", style "display:inline")
+      ;+  (hidden "what" "sync-track")
+      ;+  (hidden "name" nm)
+      ;+  (hidden "url" (trip url.p))
+      ;+  (hidden "back" "/keep/sync")
+      ;button(type "submit", class "k-link k-yes"): {label}
+    ==
   ;div.k-list
     ;div.k-list-head
       ;span.k-list-name: {nm}
@@ -941,19 +999,42 @@
               ==
           ==
         =/  s  u.got.p
-        :~  ;div.k-member
+        =/  okay  (fall okay.p %wait)
+        :*  ;div.k-member
               ;span: {(a-co:co n.s)} posts · {(a-co:co free.s)} arrive as full text · {(a-co:co paid.s)} paid, teaser only · {(day old.s)} to {(day new.s)}
             ==
             ;div.k-member
-              ;span: importing backfills all of it, then checks hourly for new posts, published to everyone
-              ;form(method "post", action "/keep", style "display:inline")
-                ;+  (hidden "what" "sync-track")
-                ;+  (hidden "name" nm)
-                ;+  (hidden "url" (trip url.p))
-                ;+  (hidden "back" "/keep/sync")
-                ;button(type "submit", class "k-link k-yes"): import + sync
+              ;span.k-status: {(proof-word `okay our.v)}
+              ;*  ?.  ?=(%yes okay)  ~
+                  ~[(check-form our.v "k-yes" "/keep/sync")]
+            ==
+            ?-    okay
+                %wait
+              :~  ;div.k-member
+                    ;span: reload for the result, or:
+                    ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
+                  ==
               ==
-              ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
+            ::
+                %yes
+              :~  ;div.k-member
+                    ;span: importing backfills all of it, then checks hourly for new posts, published to everyone
+                    ;+  track
+                    ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
+                  ==
+              ==
+            ::
+                ?(%no %down)
+              :~  (paste-box our.v)
+                  ;div.k-member
+                    ;+  (check-form our.v "k-yes" "/keep/sync")
+                  ==
+                  ;div.k-member
+                    ;+  either-way
+                    ;+  track
+                    ;+  (sync-form nm "sync-cancel" "cancel" "k-del")
+                  ==
+              ==
             ==
         ==
   ==
@@ -1119,8 +1200,15 @@
           =/  nm=tape  (trip name.r)
           =/  status=tape
             ?:  busy.r  "pulling now"
-            ?:  =(*@da last.r)  "nothing pulled yet"
-            "last pull {(day last.r)}"
+            =/  had=tape
+              ?:  =(*@da last.r)  "nothing yet"
+              "newest post {(day last.r)}"
+            =/  due=tape
+              ?:  (lte next.r now.v)  "check due"
+              =/  m=@ud  (div (sub next.r now.v) ~m1)
+              ?:  =(0 m)  "checks in under a minute"
+              "checks in {(a-co:co m)} min"
+            "{had} · {due}"
           ;div.k-list
             ;div.k-list-head
               ;span.k-list-name: {nm}
@@ -1132,6 +1220,20 @@
               ;+  (sync-form nm "sync-pull" "pull now" "k-yes")
               ;+  (sync-form nm "sync-untrack" "untrack" "k-del")
             ==
+            ;div.k-member
+              ;span.k-status: {(proof-word okay.r our.v)}
+              ;*  ?.  =(`%yes okay.r)  ~
+                  ~[(check-form our.v "k-yes" "/keep/sync")]
+            ==
+            ;*  ?:  |(=(~ okay.r) =(`%yes okay.r) =(`%wait okay.r))  ~
+                :~  (paste-box our.v)
+                    ;div.k-member
+                      ;+  (check-form our.v "k-yes" "/keep/sync")
+                    ==
+                    ;div.k-member
+                      ;+  either-way
+                    ==
+                ==
           ==
     ==
     ;div.k-new-wrap

@@ -260,7 +260,13 @@
         checked.six  keeping.six  pending.six
         ~                                ::  fans
     ==
+  ::  follows from before %7 never said so; tell them once
+  =/  told=(list card)
+    ?:  ?=(%7 -.old)  ~
+    (turn ~(tap in follows.new) |=(w=ship (tell:hc w [%follow ~])))
   :_  this(state new)
+  %+  weld  told
+  ^-  (list card)
   :^    [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
       (index-card:hc sites.new posts.new)
     (linkmap-card:hc sites.new)
@@ -549,9 +555,14 @@
       :-  (tail:hc f first)
       (give:hc (peers-of:hc ss oo))
     ::
+    ::  answered once, so a follow that crossed an upgrade lands both ways
         %follow
+      ?:  (~(has in fans) src.bowl)  `this
       =/  ff  (~(put in fans) src.bowl)
-      :_(this(fans ff) (give:hc [%fans ff]))
+      :_  this(fans ff)
+      %+  weld  (give:hc [%fans ff])
+      ?.  (~(has in follows) src.bowl)  ~
+      ~[(tell:hc src.bowl [%follow ~])]
     ::
         %unfollow
       =/  ff  (~(del in fans) src.bowl)
@@ -1130,10 +1141,32 @@
     .^  (map @tas sub:ks)  %gx
     /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/subs/noun
     ==
+  =/  bs  (badges-of our.bowl)
   %+  turn  ~(tap by m)
   |=  [name=@tas s=sub:ks]
   ^-  syncrow:ui
-  [name url.s last.s ~(wyt in seen.s) ?=(^ tid.s)]
+  [name url.s last.s next.s ~(wyt in seen.s) ?=(^ tid.s) (proof-of bs url.s)]
+::
+++  badges-of
+  |=  who=ship
+  ^-  (list [url=@t badge:ks])
+  ?.  sync-live  ~
+  =/  m
+    .^  (map claim:ks badge:ks)  %gx
+    /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/badges/noun
+    ==
+  %+  sort
+    %+  murn  ~(tap by m)
+    |=  [c=claim:ks b=badge:ks]
+    ?.(=(who who.c) ~ `[url.c b])
+  |=([a=[url=@t *] b=[url=@t *]] (aor url.a url.b))
+::
+++  proof-of
+  |=  [bs=(list [url=@t badge:ks]) url=@t]
+  ^-  (unit proof:ks)
+  ?~  bs  ~
+  ?:  =(url url.i.bs)  `proof.i.bs
+  $(bs t.bs)
 ::
 ++  sync-previews
   ^-  (list prevrow:ui)
@@ -1142,10 +1175,11 @@
     .^  (map @tas prev:ks)  %gx
     /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/previews/noun
     ==
+  =/  bs  (badges-of our.bowl)
   %+  turn  ~(tap by m)
   |=  [name=@tas p=prev:ks]
   ^-  prevrow:ui
-  [name url.p got.p fail.p]
+  [name url.p got.p fail.p (proof-of bs url.p)]
 ::
 ++  talk-rules
   ^-  (unit [banned=(set ship) tier=rank:title])
@@ -1501,11 +1535,15 @@
   ::
       [%keep %ship @ ~]
     ?~  who=(slaw %p i.t.t.seg)  (paint rid not-found:gen:srv)
+    ::  reading a page is what asks after its substack, and re-asks daily
+    %+  weld  (sync-self [%look u.who %.n])
     %+  render  rid
-    %^    user-page:vw
-        u.who
+    %:  user-page:vw
+      u.who
       (user-rows u.who)
-    ?.(&(=(our.bowl u.who) mail-live) ~ mailed-now)
+      ?.(&(=(our.bowl u.who) mail-live) ~ mailed-now)
+      (badges-of u.who)
+    ==
   ::
       [%keep %read @ @ ~]
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
@@ -1750,6 +1788,10 @@
   ?:  =('sync-untrack' what)
     ?~  nom=(slaw %tas (arg q 'name'))  ~
     (sync-self [%untrack u.nom])
+  ::
+  ?:  =('substack-check' what)
+    ?~  who=(slaw %p (arg q 'who'))  ~
+    (sync-self [%look u.who %.y])
   ::
   ?:  =('mail' what)
     ?~  i=(slaw %uv (arg q 'id'))  ~

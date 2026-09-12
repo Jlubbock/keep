@@ -5,6 +5,7 @@
 ::      /api/v1/posts/[slug]                        body_html: whole when
 ::                                                  audience is 'everyone',
 ::                                                  a teaser otherwise
+::    and one page: /about, whose text an owner can put their @p in
 ::
 /-  ks=keep-sync
 /+  hm=html-md
@@ -63,6 +64,22 @@
     (rap 3 u.body '\0a\0a' pointer ~)
   ?:  =('' md)  ~
   `[u.slug u.wen title md]
+::
+::  the @p as a whole word: ~dev must not match ~devrem or ~dev-moon
+++  mentions
+  |=  [who=ship text=@t]
+  ^-  ?
+  =/  pat=tape  (scow %p who)
+  =/  t=tape    (trip text)
+  |-  ^-  ?
+  ?~  at=(find pat t)  %.n
+  =/  rest=tape  (slag (add u.at (lent pat)) t)
+  ?~  rest  %.y
+  ?.  ?|  &((gte i.rest 'a') (lte i.rest 'z'))
+          =('-' i.rest)
+      ==
+    %.y
+  $(t rest)
 ::
 ::  substack dates: 2026-08-27T17:59:17.583Z. fractions dropped — both
 ::  sides of every gth/gte in the agent are truncated the same way

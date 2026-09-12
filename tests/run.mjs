@@ -24,6 +24,8 @@ const SCENARIOS = [
     note: 'the gated invite stays unaccepted — the direct link must be the item\'s only path' },
   { file: 'c8-mail.mjs', ships: [h.HOST],
     note: 'the relay is a stub in the scenario process on 127.0.0.1:8099' },
+  { file: 'c9-substack.mjs', ships: [h.HOST, h.PEER],
+    note: 'the substack is a stub in the scenario process on 127.0.0.1:8098' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its
   //  own assertions vacuously true.

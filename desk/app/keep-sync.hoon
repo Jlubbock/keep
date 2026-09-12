@@ -5,24 +5,44 @@
 ::    and pokes %keep with what the pull thread sends back one %ingest at a
 ::    time — so a pull that dies keeps what it reached.
 ::
+::    the publications it syncs are the ones this ship claims, grown at
+::    /substack; it also keeps every other ship's claims as it judged them
+::    (ted/keep-sync-about).
+::
 /-  keep, ks=keep-sync, spider
-/+  default-agent, dbug
+/+  default-agent, dbug, kc=keep-core
 |%
 +$  card  card:agent:gall
 ::
-+$  versioned-state  $%(state-0 state-1)
++$  versioned-state  $%(state-0 state-1 state-2 state-3)
 +$  state-0  [%0 subs=(map @tas sub:ks)]
 +$  state-1
   $:  %1
       subs=(map @tas sub:ks)
       previews=(map @tas prev:ks)
   ==
++$  state-2
+  $:  %2
+      subs=(map @tas sub:ks)
+      previews=(map @tas prev:ks)
+      mine=(unit @t)
+      badges=(map ship [url=@t =proof:ks wen=@da])
+      keens=(map ship @ud)
+  ==
++$  state-3
+  $:  %3
+      subs=(map @tas sub:ks)
+      previews=(map @tas prev:ks)
+      badges=(map claim:ks badge:ks)     ::  claims we have judged, ours included
+      keens=(map ship @ud)               ::  /substack revision keened, per ship
+  ==
 ::
-++  poll-floor  ~m15                   ::  substack is not ours to hammer
+++  poll-floor     ~m15                ::  substack is not ours to hammer
+++  recheck-after  ~d1                 ::  a badge older than this is re-read
 --
 ::
 %-  agent:dbug
-=|  state-1
+=|  state-3
 =*  state  -
 ^-  agent:gall
 =<
@@ -37,10 +57,16 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  ?-  -.old
-    %1  `this(state old)
-    %0  `this(state [%1 subs.old ~])
-  ==
+  ?:  ?=(%3 -.old)  `this(state old)
+  ::  a ship already syncing has been claiming all along; say so now
+  =.  state
+    ?-  -.old
+      %2  [%3 subs.old previews.old ~ ~]
+      %1  [%3 subs.old previews.old ~ ~]
+      %0  [%3 subs.old ~ ~ ~]
+    ==
+  =^  cs  state  grow-mine:hc
+  [cs this]
 ::
 ++  on-peek
   |=  =path
@@ -48,6 +74,8 @@
   ?+  path  (on-peek:def path)
     [%x %subs ~]      ``noun+!>(subs)
     [%x %previews ~]  ``noun+!>(previews)
+    [%x %mine ~]      ``noun+!>(mine:hc)
+    [%x %badges ~]    ``noun+!>(badges)
   ==
 ::
 ++  on-poke
@@ -65,8 +93,9 @@
       =/  url  (clean-url:hc url.act)
       ?:  =('' url)  `this
       =/  tid=@ta  (mk-tid:hc name.act)
+      =^  cs  state  (check:hc [our.bowl url] %.n)
       :_  this(previews (~(put by previews) name.act [url ~ %.n]))
-      (scan-start:hc name.act tid url)
+      (weld (scan-start:hc name.act tid url) cs)
     ::
         %cancel
       `this(previews (~(del by previews) name.act))
@@ -94,18 +123,24 @@
           next   (add now.bowl every)
           tid    ?:(?=(^ tid.base) tid.base `tid)
         ==
-      :_  %=  this
-            subs      (~(put by subs) name.act new)
-            previews  (~(del by previews) name.act)
-          ==
-      :-  (wait:hc name.act every)
-      %+  weld  orphan
-      ?^  tid.base  ~                  ::  a pull is already in flight
-      (start:hc name.act tid url last.base)
+      =/  before  mine:hc
+      =.  subs      (~(put by subs) name.act new)
+      =.  previews  (~(del by previews) name.act)
+      =^  grown  state  (regrow:hc before)
+      :_  this
+      ;:  weld
+        ~[(wait:hc name.act every)]
+        orphan
+        ?^(tid.base ~ (start:hc name.act tid url last.base))
+        grown
+      ==
     ::
         %untrack
       ::  the timer chain ends itself: a wake for an unknown name stops
-      `this(subs (~(del by subs) name.act))
+      =/  before  mine:hc
+      =.  subs  (~(del by subs) name.act)
+      =^  grown  state  (regrow:hc before)
+      [grown this]
     ::
         %pull
       ?~  got=(~(get by subs) name.act)  ~|(%sync-no-such-sub !!)
@@ -124,6 +159,15 @@
         ==
       :_  this(subs (~(put by subs) name.act sub))
       ~[(upload:hc name.act p.act terms.u.got to.u.got)]
+    ::
+        %look
+      ::  our own claims never cross the network
+      =/  hear=(list card)
+        ?:  |(=(our.bowl who.act) (~(has by keens) who.act))  ~
+        ~[(keen-badge:hc who.act first:kc)]
+      =?  keens  ?=(^ hear)  (~(put by keens) who.act first:kc)
+      =^  cs  state  (check-all:hc who.act force.act)
+      [(weld hear cs) this]
     ==
   ==
 ::
@@ -170,6 +214,34 @@
       ==
     ==
   ::
+      [%about @ @ ~]
+    ?~  c=(claim-of:hc wire)  [~[(leave:hc wire)] this]
+    ?-    -.sign
+        %poke-ack
+      ?~  p.sign  `this
+      %-  (slog leaf+"keep-sync: spider refused the about check of {<who.u.c>}" u.p.sign)
+      [~[(leave:hc wire)] this(badges (judge:hc u.c %down))]
+    ::
+        %watch-ack
+      ?~  p.sign  `this
+      [~ this(badges (judge:hc u.c %down))]
+    ::
+        %kick
+      [~ this(badges (judge:hc u.c %down))]
+    ::
+        %fact
+      ?+    p.cage.sign  [~[(leave:hc wire)] this]
+          %thread-fail
+        =/  err  !<((pair term tang) q.cage.sign)
+        %-  (slog leaf+"keep-sync: about check of {<who.u.c>} failed: {(trip p.err)}" q.err)
+        [~[(leave:hc wire)] this(badges (judge:hc u.c %down))]
+      ::
+          %thread-done
+        =/  ok  !<(? q.cage.sign)
+        [~[(leave:hc wire)] this(badges (judge:hc u.c ?:(ok %yes %no)))]
+      ==
+    ==
+  ::
       [%thread @ ~]
     =/  name  `@tas`i.t.wire
     ?-    -.sign
@@ -207,6 +279,10 @@
 ++  on-arvo
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
+  ?:  ?=([%ames %sage *] sign-arvo)
+    ?.  ?=([%badge @ @ ~] wire)  `this
+    =^  cs  state  (on-badge:hc wire sage.sign-arvo)
+    [cs this]
   ?.  ?=([%behn %wake *] sign-arvo)  (on-arvo:def wire sign-arvo)
   ?.  ?=([%poll @ ~] wire)  `this
   =/  name  `@tas`i.t.wire
@@ -258,7 +334,7 @@
   (cat 3 'https://' u)
 ::
 ++  mk-tid
-  |=  name=@tas
+  |=  name=@ta
   ^-  @ta
   (cat 3 'keep-sync--' (cat 3 name (scot %uv (sham eny.bowl))))
 ::
@@ -298,4 +374,131 @@
   :^  %pass  /post/[name]  %agent
   :+  [our.bowl %keep]  %poke
   keep-action+!>(`action:keep`[%backpost md+md.p `title.p terms to wen.p])
+::
+::  ---- substack identity ---------------------------------------------------
+::
+++  mine
+  ^-  (set @t)
+  (sy (turn ~(tap by subs) |=([* s=sub:ks] url.s)))
+::
+++  claims-of
+  |=  who=ship
+  ^-  (list claim:ks)
+  (skim ~(tap in ~(key by badges)) |=(c=claim:ks =(who who.c)))
+::
+++  grow-mine
+  ^-  (quip card _state)
+  =/  urls  mine
+  =^  cs  state  (learn our.bowl urls)
+  [[[%pass /grow %grow /substack noun+urls] cs] state]
+::
+++  regrow
+  |=  before=(set @t)
+  ^-  (quip card _state)
+  ?:  =(before mine)  [~ state]
+  grow-mine
+::
+++  keen-badge
+  |=  [who=ship at=@ud]
+  ^-  card
+  :^  %pass  /badge/(scot %ud at)/(scot %p who)  %keen
+  [%.n who (welp (base-of:kc %keep-sync at) /substack)]
+::
+++  about-wire
+  |=  c=claim:ks
+  ^-  wire
+  /about/(scot %p who.c)/(scot %uv (sham url.c))
+::
+++  claim-of
+  |=  =wire
+  ^-  (unit claim:ks)
+  ?.  ?=([%about @ @ ~] wire)  ~
+  =/  cs  (claims-of (slav %p i.t.wire))
+  |-  ^-  (unit claim:ks)
+  ?~  cs  ~
+  ?:  =(wire (about-wire i.cs))  `i.cs
+  $(cs t.cs)
+::
+++  about-start
+  |=  c=claim:ks
+  ^-  (list card)
+  =/  tid=@ta  (mk-tid (cat 3 (scot %p who.c) (scot %uv (sham url.c))))
+  (thread-cards (about-wire c) tid %keep-sync-about !>(`c))
+::
+::  a verdict for a claim that is gone, or no longer waiting, is stale
+++  judge
+  |=  [c=claim:ks =proof:ks]
+  ^-  _badges
+  ?~  got=(~(get by badges) c)  badges
+  ?.  ?=(%wait proof.u.got)  badges
+  (~(put by badges) c [proof now.bowl])
+::
+++  check
+  |=  [c=claim:ks force=?]
+  ^-  (quip card _state)
+  =/  was=(unit badge:ks)  (~(get by badges) c)
+  =/  due=?
+    ?~  was  %.y
+    ?:  ?=(%wait proof.u.was)  %.n
+    |(force (gth now.bowl (add wen.u.was recheck-after)))
+  ?.  due  [~ state]
+  :-  (about-start c)
+  state(badges (~(put by badges) c [%wait now.bowl]))
+::
+++  check-all
+  |=  [who=ship force=?]
+  ^-  (quip card _state)
+  =/  cs  (claims-of who)
+  =|  out=(list card)
+  |-  ^-  (quip card _state)
+  ?~  cs  [out state]
+  =^  a  state  (check i.cs force)
+  $(cs t.cs, out (weld out a))
+::
+++  learn
+  |=  [who=ship urls=(set @t)]
+  ^-  (quip card _state)
+  =^  gone  state  (forget who urls)
+  =/  new=(list @t)  ~(tap in urls)
+  =|  out=(list card)
+  |-  ^-  (quip card _state)
+  ?~  new  [(weld gone out) state]
+  =^  a  state  (check [who i.new] %.n)
+  $(new t.new, out (weld out a))
+::
+::  a claim withdrawn while its check is in flight: stop listening too
+++  forget
+  |=  [who=ship still=(set @t)]
+  ^-  (quip card _state)
+  =/  had  (claims-of who)
+  =|  out=(list card)
+  |-  ^-  (quip card _state)
+  ?~  had  [out state]
+  ?:  (~(has in still) url.i.had)  $(had t.had)
+  =/  was=badge:ks  (~(got by badges) i.had)
+  %=  $
+    had     t.had
+    badges  (~(del by badges) i.had)
+    out     ?.(?=(%wait proof.was) out [(leave (about-wire i.had)) out])
+  ==
+::
+++  on-badge
+  |=  [=wire =sage:mess:ames]
+  ^-  (quip card _state)
+  ?>  ?=([%badge @ @ ~] wire)
+  =/  at=@ud    (slav %ud i.t.wire)
+  =/  who=ship  (slav %p i.t.t.wire)
+  ::  an old chain — a keen surviving a reinstall — answers late: drop it
+  ?.  =(`at (~(get by keens) who))  [~ state]
+  =/  next=(list card)  ~[(keen-badge who +(at))]
+  =.  keens  (~(put by keens) who +(at))
+  ::  %sage collapses tombstone and failure into one empty q; step over it
+  ?:  ?=(~ q.sage)  [next state]
+  ::  ;; is a hard cast; +mule installs a null scry gate, nothing inside may .^
+  =/  got  (mule |.(;;((set @t) q.q.sage)))
+  ?:  ?=(%| -.got)
+    %-  (slog leaf+"keep-sync: unreadable substack claim from {<who>}" ~)
+    [next state]
+  =^  cs  state  (learn who p.got)
+  [(weld next cs) state]
 --

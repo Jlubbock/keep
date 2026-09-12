@@ -84,7 +84,9 @@ who follows, which remote scry never tells them). everything else is remote
 scry.
 
 %follow and %unfollow ride an unacked wire. a %keep older than 2026-09 nacks
-them, and a nack from those must not read as "not running %keep".
+them, and a nack from those must not read as "not running %keep". a ship
+answers a new follower it already follows with its own %follow, once, so a
+pair that upgraded in either order ends up knowing about each other.
 
 both are pokes any ship can send, so neither may subscribe us on its own.
 %announce is ignored unless the sender is a pals target. %invite parks in
@@ -92,6 +94,30 @@ both are pokes any ship can send, so neither may subscribe us on its own.
 unbounded write into a stranger's feed, and comets are free. %accept is
 where the keen starts and where the sender enters `follows`; %reject just
 drops the offer, and a re-invite may be sent.
+
+## Substack identity
+
+The publications a ship syncs are the ones it claims. `%keep-sync` grows
+their urls as a set at `/substack` — the same remote-scry shape as an index,
+so a reader who opens the ship's page keens revision 1 and tails from there.
+What the reader does with a url is its own business: it fetches `<url>/about`
+and looks for the claiming ship's `@p` in the page, as a whole word. The
+verdict is cached per claim for a day, rechecked on the next page view after
+that, or on demand.
+
+There is no verifier because there is nothing to verify centrally: the about
+page is public, and every reader can fetch it. A ship that trusts a friend's
+verdict over its own can ask them; the agent never will. Untracking regrows
+the set without that url, which drops the badge on every reader whose keen is
+parked.
+
+Verification gates nothing. The scan that precedes a track also reads the
+about page, and a publication that does not name the ship is offered "sync
+anyway" beside the line to paste; a ship that was already syncing when this
+arrived is claimed on upgrade, and checked, without anyone re-entering it.
+
+What this proves is control of the publication's about page, not authorship
+of its posts, and only for as long as the line stays there.
 
 ## Signed authorship
 

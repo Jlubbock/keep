@@ -151,6 +151,31 @@
     (expect-eq !>(`(unit @da)`~) !>((iso-da:sk '2026-01-02 03:04:05')))
   ==
 ::
+::  ---- the about check -------------------------------------------------------
+::
+++  test-mentions
+  ^-  tang
+  %+  expect-eq
+    !>(%.y)
+  !>((mentions:sk ~dev '<p>I\'m ~dev on Keep.</p>'))
+::
+::  the wrong ship is the control: a page can name someone and still fail
+++  test-mentions-other-ship
+  ^-  tang
+  %+  expect-eq
+    !>(%.n)
+  !>((mentions:sk ~lex '<p>I\'m ~dev on Keep.</p>'))
+::
+::  a galaxy is a prefix of a great many ships
+++  test-mentions-whole-word
+  ^-  tang
+  ;:  weld
+    (expect-eq !>(%.n) !>((mentions:sk ~dev 'see ~devrem')))
+    (expect-eq !>(%.n) !>((mentions:sk ~dev 'see ~dev-moon')))
+    (expect-eq !>(%.y) !>((mentions:sk ~dev 'see ~devrem and ~dev.')))
+    (expect-eq !>(%.y) !>((mentions:sk ~dev '~dev')))
+  ==
+::
 ::  ---- json reshaping --------------------------------------------------------
 ::
 ++  test-arch-reshape

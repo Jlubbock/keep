@@ -40,6 +40,21 @@
       fail=?
   ==
 ::
+::  ---- substack identity ---------------------------------------------------
+::
+::  the publications a ship syncs are the ones it claims, grown as a
+::  (set @t) at /substack. whoever reads its page fetches each one's /about
+::  and looks for the ship's own @p there. there is no verifier: every
+::  reader judges alone and keeps its answer
++$  proof  ?(%wait %yes %no %down)      ::  %down: /about did not answer
+::
++$  badge                                ::  one claim, as we last judged it
+  $:  =proof
+      wen=@da                            ::  when we last read /about
+  ==
+::
++$  claim  [who=ship url=@t]
+::
 ::  ---- writes: poke %keep-sync-action --------------------------------------
 ::
 +$  action
@@ -49,5 +64,7 @@
       [%untrack name=@tas]
       [%pull name=@tas]                  ::  poll now, off the clock
       [%ingest name=@tas p=post]         ::  from our own pull thread, one by one
+      ::
+      [%look who=ship force=?]           ::  a page is being read: keen, then judge
   ==
 --
