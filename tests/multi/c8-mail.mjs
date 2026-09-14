@@ -104,8 +104,9 @@ let n = since();
 await mail(`[%config ['${BASE}' '${KEY}']]`);
 s.check('C8.0 saving the key asks the relay who confirmed and for the proof token', await h.got(h.until('two calls', () =>
   at(n, '/api/mail/readers').some((r) => r.auth === `Bearer ${KEY}`) && at(n, '/api/mail/import/token').length >= 1)));
-s.check('C8.0b the mail page shows the token and hides the key', await h.got(h.until('token', async () => (await page()).includes(TOKEN)))
-  && (await page()).includes(`data-key="${KEY}"`) && !(await page()).includes(`key: ${KEY}`));
+s.check('C8.0b the mail page hides the key, shows no token, and sends the writer to the sync page to claim a Substack',
+  await h.got(h.until('proof fetched', async () => (await page()).includes('/keep/sync')))
+  && (await page()).includes(`data-key="${KEY}"`) && !(await page()).includes(`key: ${KEY}`) && !(await page()).includes(TOKEN));
 s.check('C8.0c the writer\'s public page carries no subscribe form',
   !(await host.get(`/keep/ship/${h.HOST}`)).body.includes('/subscribe/'));
 n = since();
@@ -122,7 +123,8 @@ s.check('C8.1b and is handed to the relay in the same click, no proof needed',
   await h.got(h.until('import call', () => at(n, '/api/mail/import').length === 1))
     && at(n, '/api/mail/import')[0].source_url === '' && at(n, '/api/mail/import')[0].csv.includes(readers[3]));
 s.check('C8.1c the card says done, in days', await h.got(h.until('done', async () => (await page()).includes('118 readers will be asked to re-confirm over the next 1 day'))));
-s.check('C8.1d the badge is offered, not required', (await page()).includes('Optional') && (await page()).includes(TOKEN));
+s.check('C8.1d proof is required: with no Substack claimed the page points at sync and shows no token',
+  (await page()).includes('/keep/sync') && (await page()).includes('Nothing can be imported') && !(await page()).includes(TOKEN));
 n = since();
 await mail(`[%import 'solo-${TAG}@x.test' '']`);
 s.check('C8.1e a single address is added the same way and handed to the relay',
@@ -134,7 +136,7 @@ n = since();
 await mail(`[%verify 'https://wrong.example/about']`);
 s.check('C8.2 a wrong page is checked and refused',
   await h.got(h.until('verify call', () => at(n, '/api/mail/import/verify').length === 1))
-    && await h.got(h.until('refusal shown', async () => (await page()).includes('find your token on that page'))));
+    && await h.got(h.until('refusal shown', async () => (await page()).includes('name on the About page yet'))));
 await mail(`[%verify '${SOURCE}']`);
 s.check('C8.2b the right page earns the badge', await h.got(h.until('badge', async () => (await page()).includes('verified on Substack'))));
 

@@ -10,7 +10,7 @@
 ::    cannot touch the post — it can only still prune an address the
 ::    relay dropped.
 ::
-/-  keep, km=keep-mail
+/-  keep, km=keep-mail, ks=keep-sync
 /+  default-agent, dbug, srv=server, kml=keep-mail, mh=md-html, kc=keep-core
 |%
 +$  card  card:agent:gall
@@ -426,7 +426,14 @@
       [%proof ~]
     =.  trouble  (trouble-of:hc code body)
     ?.  ok  `this
-    `this(proof (proof-of:kml body))
+    =.  proof  (proof-of:kml body)
+    ?~  config  `this
+    ?:  &(?=(^ proof) ?=(^ verified.u.proof))  `this
+    =/  c  claim:hc
+    ?~  c  `this
+    ?.  ?=(%yes proof.u.c)  `this
+    :_  this
+    ~[(verify:hc u.config url.u.c)]
   ::
       [%profile ~]
     ~?  !ok  [%keep-mail-name-not-taken code]
@@ -438,7 +445,7 @@
     =/  found=?  &(?=(^ p) ?=(^ verified.u.p))
     =/  np=(unit proof:km)  ?~(p proof p)
     ?:  found  `this(proof np, checked ~)
-    `this(proof np, checked `'we couldn\'t find your token on that page — check the address and try again')
+    `this(proof np, checked `'Keep couldn\'t find your ship\'s name on the About page yet — try Check again in a minute')
   ::
       [%import ~]
     =/  n  ?.(ok ~ (import-of:kml body))
@@ -549,6 +556,7 @@
       relayed
       proof
       checked
+      claim
       trouble
       ?~(config '' (subscribe-url:kml relay.u.config our.bowl))
       m
@@ -714,6 +722,25 @@
   |=  [c=config:km i=id:keep round=@da job=@t]
   ^-  card
   (fetch /poll/(scot %uv i)/(scot %da round) [%'GET' (job-url:kml relay.c job) (bearer c) ~])
+::
+::  the ship's own substack claim, a %yes first: the relay proves the same page
+++  claim
+  ^-  (unit [url=@t =proof:ks])
+  ?.  .^(? %gu /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/$)  ~
+  =/  urls=(list @t)
+    ~(tap in .^((set @t) %gx /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/mine/noun))
+  ?~  urls  ~
+  =/  bs=(map claim:ks badge:ks)
+    .^((map claim:ks badge:ks) %gx /(scot %p our.bowl)/keep-sync/(scot %da now.bowl)/badges/noun)
+  =/  judged=(list [url=@t =proof:ks])
+    %+  turn  urls
+    |=  url=@t
+    =/  b  (~(get by bs) [our.bowl url])
+    [url ?~(b %wait proof.u.b)]
+  =/  yes  (skim judged |=([* p=proof:ks] ?=(%yes p)))
+  ?^  yes  `i.yes
+  ?~  judged  ~
+  `i.judged
 ::
 ::  what a look at the relay fetches: who confirmed, and our proof token
 ++  ask

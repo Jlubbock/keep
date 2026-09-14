@@ -1145,6 +1145,26 @@
   :_  ~
   ;div.k-mail-sec
     ;div.k-rules-head: moving from substack
+    ;*  ?~  proof.s  ~
+        ?^  proven
+          :_  ~
+          ;div.k-mail-hint: ✓ verified on Substack
+        ?~  claim.s
+          :_  ~
+          ;div.k-mail-hint
+            ; First, connect your Substack on the
+            ;a(href "/keep/sync"): sync
+            ; page. Nothing can be imported until Keep finds {(pp our.v)} on its About page.
+          ==
+        ?:  ?=(%yes proof.u.claim.s)
+          :_  ~
+          ;div.k-mail-hint: Your ship found {(pp our.v)} on the About page of {(trip url.u.claim.s)} — Keep is checking the same page now. Reload in a moment.
+        :~  ;div.k-mail-hint: First, show the Substack is yours — the same check as on the sync page. Nothing can be imported until then.
+            (paste-box our.v)
+            ;div.k-mail-hint
+              ;+  (check-form our.v "k-yes" "/keep/mail")
+            ==
+        ==
     ;*  ?^  asked.s
           =/  n=@ud  u.asked.s
           =/  days=@ud  (max 1 (div (add n 499) 500))
@@ -1157,11 +1177,11 @@
           ==
         ::  the file becomes an ordinary form field in app.js — eyre
         ::  sees urlencoded bytes, never multipart
-        :~  ;p.k-mail-lede: Upload your subscriber export (Substack → Settings → Exports), or any CSV of addresses. Each reader is emailed once to re-confirm; those who click show up above.
+        :~  ;p.k-mail-lede: Upload your subscriber export (Substack → Settings → Exports), or any CSV of addresses. Its size is checked against the subscriber count your publication shows. Each reader is emailed once to re-confirm; those who click show up above.
             ;form(method "post", action "/keep", class "k-one k-mail-import k-mail-row")
               ;+  (hidden "what" "mail-import")
               ;+  (hidden "back" "/keep/mail")
-              ;+  (hidden "url" ?~(proven "" (trip u.proven)))
+              ;+  (hidden "url" ?^(proven (trip u.proven) ?~(claim.s "" (trip url.u.claim.s))))
               ;input(type "hidden", name "emails", value "");
               ;input(type "file", name "csv", class "k-file", accept ".csv,text/csv");
               ;button(type "submit", class "k-link k-mail"): import
@@ -1170,19 +1190,6 @@
     ;*  ?~  relayed.s  ~
         :_  ~
         ;div(class "k-mail-hint k-mail-bad"): {(trip u.relayed.s)}
-    ;*  ?~  proof.s  ~
-        ?^  proven
-          :_  ~
-          ;div.k-mail-hint: ✓ verified on Substack
-        :~  ;div.k-mail-hint: Optional — show a "verified on Substack" badge: put this on your About page, then enter that page's address.
-            ;div(class "k-mail-hint", style "user-select:all"): {(trip token.u.proof.s)}
-            ;form(method "post", action "/keep", class "k-one k-mail-row")
-              ;+  (hidden "what" "mail-verify")
-              ;+  (hidden "back" "/keep/mail")
-              ;input(type "text", name "url", class "k-mail-in", placeholder "https://you.substack.com/about", autocomplete "off");
-              ;button(type "submit", class "k-link k-mail"): verify
-            ==
-        ==
     ;*  ?~  checked.s  ~
         :_  ~
         ;div(class "k-mail-hint k-mail-bad"): {(trip u.checked.s)}

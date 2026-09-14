@@ -366,7 +366,12 @@
         ?.  ?=(%mailpost -.act)  ~
         (mail-self:hc [%send id %.n])
       :_  this(posts new-posts, sites new-sites)
-      :(weld grows cards web (give:hc [%posted id entry]) mail)
+      %-  zing
+      :~  grows  cards  web
+          (give:hc [%posted id entry])
+          mail
+          (talk-self:hc [%open id])
+      ==
     ::
         %keep
       ?:  =(our.bowl ship.entry.act)  `this
@@ -1805,11 +1810,6 @@
   ::
   ?:  =('mail-reset' what)
     (mail-self [%reset ~])
-  ::
-  ?:  =('mail-verify' what)
-    =/  url=@t  (arg q 'url')
-    ?:  =('' url)  ~
-    (mail-self [%verify url])
   ::
   ?:  =('mail-import' what)
     =/  raw=@t  (arg q 'emails')

@@ -6,7 +6,7 @@
 ::    by clicking a link the relay sent them are mailed. nothing sends
 ::    without a %send poke.
 ::
-/-  keep
+/-  keep, ks=keep-sync
 |%
 +$  addr  @t                             ::  lowercased email address
 ::
@@ -44,6 +44,7 @@
       relayed=(unit @t)                  ::  or why the relay refused it
       proof=(unit proof)                 ::  the optional substack badge
       checked=(unit @t)                  ::  what the last ownership check said, if it failed
+      claim=(unit [url=@t =proof:ks])    ::  the substack this ship claims in %keep-sync, as the ship judged it
       trouble=(unit @t)                  ::  the relay rejected this ship's key, or cannot be reached
       subscribe=@t                       ::  the form action readers post to; '' until set up
       stat=(map id:keep mstat)

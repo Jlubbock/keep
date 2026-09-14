@@ -98,13 +98,23 @@ send endpoint itself is migrated by stripping `/api/mail/send`.
   the "add" box on the mail page goes down the same path: onto the ship's
   list, and to the relay, which accepts a bare list as a `manual` import
   and asks each address once (2026-09-10).
-- **Ownership proof is a badge, not a gate** (2026-09-10). The relay
-  records whether the source was verified but does not require it
-  (`REQUIRE_PROOF` in the relay's `imports.py` flips that back on).
-  `%verify url` asks the relay to find the ship's token at that page; the
-  page shows "✓ verified on Substack" or the reason it could not, in
-  `checked`. An import given a url runs the check beside it, not ahead of
-  it.
+- **Ownership proof is a gate, and it is the sync claim** (2026-09-12).
+  The relay accepts nothing until the publication's About page names the
+  ship — the same whole-word `+mentions` check `%keep-sync` makes of any
+  claim (the relay's token is accepted there too). The mail page has no
+  url box: `status` carries `claim`, the Substack this ship claims in
+  `%keep-sync` (scried from `/mine` and `/badges`, a `%yes` first) and the
+  page shows the sync page's own paste line and "Check again" button for
+  it. When the relay's token fetch comes back unverified and the ship's
+  badge is `%yes`, the agent fires `%verify` with the claim url itself, so
+  a Substack verified on the sync page verifies at the relay on the next
+  mail page load. `%verify url` remains a poke (dojo, c8). The page shows
+  "✓ verified on Substack" or the relay's reason in `checked`. An import
+  is sent with the verified url, else the claim url, and the relay proves
+  it inline before accepting. The same About page states the
+  publication's subscriber count ("Over 200,000" when the writer shows
+  it); a list with more than twice that many active rows is refused
+  (422), and the reason lands in `relayed`. A hidden count checks nothing.
 - **A relay that rejects the key** (401/403 on the readers or token
   fetch) puts a sentence in `trouble`, which the email section shows in
   place of "Email is set up"; a 2xx clears it.
@@ -152,9 +162,9 @@ send endpoint itself is migrated by stripping `/api/mail/send`.
   see, or the relay's complaint about the key); readers ("N readers · M
   waiting", one line on how a reader gets in, the list inline with a ×
   per row when under 200, else a link to `/keep/mail/readers`); moving
-  from substack (upload, or done; the optional "verified on Substack"
-  badge beside it). No key, no paste box, no refresh button, no
-  add-by-hand.
+  from substack (the sync claim's paste line and Check again until the
+  relay sees it, then upload, or done). No key, no url box, no refresh
+  button.
 
 ## The relay contract (this is live today)
 
