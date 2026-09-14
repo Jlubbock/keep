@@ -1,11 +1,9 @@
-::  layer A — lib/keep-core: the addresses. Gating is entirely a question of
-::  who receives a pointer, so the pointer's derivation is the whole story.
+::  layer A — lib/keep-core: the addresses. A gated list is one address under
+::  its coop, so the derivation is the whole story of where a reader looks.
 ::
 /-  keep
 /+  *test, kc=keep-core, ui=keep-ui
 |%
-++  salt  0v1.23456
-::
 ++  head-at
   |=  wen=@da
   ^-  head:keep
@@ -18,38 +16,65 @@
 ::
 ::  ---- addresses -------------------------------------------------------------
 ::
-::  %public is derivable from the @p, so nobody has to be told it
-++  test-public-index-is-shared
+::  every install publishes under its own nonce, so a nuked and reinstalled
+::  writer never asks gall for a revision number it has already given out
+++  test-public-index-carries-the-install-nonce
   ^-  tang
-  %+  expect-eq  !>(`path`/index)
-  !>((member-spur:kc %public salt ~bus))
+  (expect-eq !>(`path`/0v5/index) !>((feed-spur:kc %public 0v5)))
 ::
-::  every member reads a different address, so a leaked path names one ship
-++  test-members-get-different-addresses
+::  a gated list has one address, under its coop; the coop is the capability
+++  test-gated-feed-lives-under-its-coop
   ^-  tang
-  %+  expect-eq  !>(%.n)
-  !>(=((member-spur:kc %inner salt ~bus) (member-spur:kc %inner salt ~wes)))
+  (expect-eq !>(`path`/list/inner/0v5/index) !>((feed-spur:kc %inner 0v5)))
 ::
-++  test-lists-get-different-addresses
+++  test-index-kind
   ^-  tang
-  %+  expect-eq  !>(%.n)
-  !>(=((member-spur:kc %inner salt ~bus) (member-spur:kc %outer salt ~bus)))
+  %+  expect-eq  !>(~[%.y %.y %.n %.n])
+  !>  :~  (index-kind:kc /index)
+          (index-kind:kc /0v5/index)
+          (index-kind:kc /list/inner/0v5/index)
+          (index-kind:kc /item/0v5)
+      ==
 ::
-::  the salt is the capability: without it the address is derivable
-++  test-salt-changes-the-address
+::  a reader swaps an address only for one of the same kind from the same writer
+++  test-same-kind
   ^-  tang
-  %+  expect-eq  !>(%.n)
-  !>(=((member-spur:kc %inner salt ~bus) (member-spur:kc %inner 0v6.78901 ~bus)))
+  %+  expect-eq  !>(~[%.y %.y %.y %.n %.n])
+  !>  :~  (same-kind:kc /index /0v5/index)
+          (same-kind:kc /list/inner/index /list/inner/0v5/index)
+          (same-kind:kc /list/0v1.23456 /list/inner/0v5/index)
+          (same-kind:kc /list/inner/0v5/index /list/outer/0v5/index)
+          (same-kind:kc /0v5/index /list/inner/0v5/index)
+      ==
 ::
-++  test-member-address-is-stable
+++  test-lists-get-different-coops
   ^-  tang
-  %+  expect-eq  !>(%.y)
-  !>(=((member-spur:kc %inner salt ~bus) (member-spur:kc %inner salt ~bus)))
+  (expect-eq !>(%.n) !>(=((coop:kc %inner) (coop:kc %outer))))
 ::
-++  test-mint-salts-with-entropy
+::  a gated post is a copy per list, so a member of one list cannot name
+::  the address another list reads
+++  test-gated-post-is-per-list
   ^-  tang
-  %+  expect-eq  !>(%.n)
-  !>(=((mint:kc 0v1 %inner) (mint:kc 0v2 %inner)))
+  %+  expect-eq  !>(~[/item/0v5 /list/inner/item/0v5])
+  !>(~[(post-spur:kc %public 0v5) (post-spur:kc %inner 0v5)])
+::
+::  the reader keens secret exactly when the path is under a coop
+++  test-gated-is-by-prefix
+  ^-  tang
+  %+  expect-eq  !>(~[%.n %.y %.y %.n])
+  !>  :~  (gated:kc (welp (base:kc 1) /index))
+          (gated:kc (welp (base:kc 1) /list/inner/index))
+          (gated:kc (welp (base:kc 1) /list/inner/item/0v5))
+          (gated:kc (welp (base:kc 1) /item/0v5))
+      ==
+::
+++  test-old-member-address-is-recognized
+  ^-  tang
+  %+  expect-eq  !>(~[%.y %.n %.n])
+  !>  :~  (old-member:kc /list/0v1.23456)
+          (old-member:kc /list/inner/index)
+          (old-member:kc /index)
+      ==
 ::
 ::  (scot %ud 1) not %1: %1 is the atom 1, an 0x01 byte in the path
 ++  test-base-numbers-in-text
@@ -64,6 +89,10 @@
 ++  test-last-of-is-the-id
   ^-  tang
   (expect-eq !>('0v5') !>((last-of:kc (item-spur:kc 0v5))))
+::
+++  test-id-of-reads-through-a-coop
+  ^-  tang
+  (expect-eq !>(`(unit @uvH)``0v5) !>((id-of:kc (post-spur:kc %inner 0v5))))
 ::
 ::  ---- the open web ----------------------------------------------------------
 ::
@@ -109,36 +138,31 @@
   %+  expect-eq  !>(~[~2026.3.3 ~2026.2.2 ~2026.1.1])
   !>((turn (by-date:kc rs) |=(r=row:ui ?~(hed.r *@da wen.u.hed.r))))
 ::
-++  test-has-entry
+::  a log holds only our own addresses, so an id names one entry in it,
+::  whichever coop that copy lives under
+++  test-has-id
   ^-  tang
-  =/  es  ~[[~zod /item/0v1] [~bus /item/0v2]]
-  %+  expect-eq  !>(~[%.y %.n])
-  !>  :~  (has-entry:kc es [~bus /item/0v2])
-          (has-entry:kc es [~bus /item/0v3])
+  =/  es  ~[[~zod /item/0v1] [~zod /list/inner/item/0v2]]
+  %+  expect-eq  !>(~[%.y %.y %.n])
+  !>  :~  (has-id:kc es 0v1)
+          (has-id:kc es 0v2)
+          (has-id:kc es 0v3)
       ==
 ::
 ::  ---- deletion --------------------------------------------------------------
 ::
 ::  a revision carries the whole index, so deleting is growing the log again
 ::  without one pointer — the order of what remains is what a reader diffs
-++  test-drop-entry-keeps-the-order
+++  test-drop-id-keeps-the-order
   ^-  tang
   =/  es  ~[[~zod /item/0v1] [~zod /item/0v2] [~zod /item/0v3]]
   %+  expect-eq  !>(~[[~zod /item/0v1] [~zod /item/0v3]])
-  !>((drop-entry:kc es [~zod /item/0v2]))
+  !>((drop-id:kc es 0v2))
 ::
-::  a repost is the SAME id at the reposter's address, so deleting ours must
-::  not match theirs
-++  test-drop-entry-is-by-address
-  ^-  tang
-  =/  es  ~[[~zod /item/0v1] [~bus /item/0v1]]
-  %+  expect-eq  !>(~[[~bus /item/0v1]])
-  !>((drop-entry:kc es [~zod /item/0v1]))
-::
-++  test-drop-entry-of-a-stranger-changes-nothing
+++  test-drop-id-of-a-stranger-changes-nothing
   ^-  tang
   =/  es  ~[[~zod /item/0v1] [~zod /item/0v2]]
-  (expect-eq !>(es) !>((drop-entry:kc es [~zod /item/0v9])))
+  (expect-eq !>(es) !>((drop-id:kc es 0v9)))
 ::
 ::  ---- same-origin: the csrf gate on every form POST ------------------------
 ::

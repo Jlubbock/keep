@@ -16,10 +16,10 @@ network.
 
 - `sain.hoon` — `+sain`, the id every signature is taken over. One arm per
   field, each showing the id move, because a head has to verify alone.
-- `core.hoon` — `lib/keep-core`: the salted per-member spur, the public index
-  address, slug derivation and collision avoidance, `by-date`. Gating is
-  entirely a question of who receives a pointer, so the pointer's derivation is
-  the whole story.
+- `core.hoon` — `lib/keep-core`: the coop address of a gated list, the public index
+  address, slug derivation and collision avoidance, `by-date`. A gated list
+  is one address inside its coop, so the derivation says where a reader
+  looks and when it keens secret.
 - `view.hoon` — the parts of `lib/keep-ui` that are a contract rather than a
   look: read-url segment order, author attribution on a hosted copy.
 
@@ -148,6 +148,18 @@ Its own, at `~/solarsystem/fleet/keep` — not the marketplace suite's piers.
 Different `@p`, different ports, so both suites can run at once.
 
     fleet/keep/golden/{dev,lex,mun}   baked by tests/bake.mjs, never by a run
+
+A golden is a fakeship with %mcp and %pals installed; %keep is what the bake
+adds. To make one from nothing (vere 4.6, the `.run` in any existing golden):
+
+    .run -F dev -c fleet/keep/golden.new/dev --http-port 8095 -d   # boot, then stop it
+    tests/golden.exp <.run> fleet/keep/golden.new/dev dev <a known-good golden>
+
+The expect script creates and mounts the two desks, copies them from the
+known-good golden (a bare |new-desk lacks the base marks the vendored sources
+assume), commits, installs, prints the +code for harness.mjs, and exits.
+Never |nuke an agent on a golden: gall keeps a nuked agent's revision
+counters, and clones of it can then never serve revision 1 of a grown path.
     fleet/keep/run/{dev,lex,mun}      disposable CoW clones, ports 8095-8097
 
 `~dev` is the HOST — it publishes, owns lists, and judges. `~lex` is the PEER —

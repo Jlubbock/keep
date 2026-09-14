@@ -13,8 +13,14 @@
 ::  not `list`: that shadows the stdlib mold in every arm of this file
 +$  roster
   $:  members=(set ship)
-      salt=@uvH
       log=(list entry)                 ::  what we have grown here, newest last
+  ==
+::
+::  frozen: lists before %8 addressed each member by a salted spur
++$  roster-7
+  $:  members=(set ship)
+      salt=@uvH
+      log=(list entry)
   ==
 ::
 ::  frozen: what was actually written to disk. never change these.
@@ -22,12 +28,12 @@
 +$  item-0  [head=head-0 =page]
 ::
 +$  versioned-state
-  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6 state-7)
+  $%(state-0 state-1 state-2 state-3 state-4 state-5 state-6 state-7 state-8 state-9)
 ::
 +$  state-0
   $:  %0
       posts=(map id item-0)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -39,7 +45,7 @@
 +$  state-1
   $:  %1
       posts=(map id item-0)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -52,7 +58,7 @@
 +$  state-2
   $:  %2
       posts=(map id item-0)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)              ::  feed -> revision we are keened on
       wall=(list [via=feed =entry])    ::  newest first
       refs=(set entry)                 ::  every entry now walled
@@ -66,7 +72,7 @@
 +$  state-3
   $:  %3
       posts=(map id item:keep)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -82,7 +88,7 @@
 +$  state-4
   $:  %4
       posts=(map id item:keep)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -98,7 +104,7 @@
 +$  state-5
   $:  %5
       posts=(map id item:keep)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -115,7 +121,7 @@
 +$  state-6
   $:  %6
       posts=(map id item:keep)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -132,7 +138,7 @@
 +$  state-7
   $:  %7
       posts=(map id item:keep)
-      lists=(map lyst roster)
+      lists=(map lyst roster-7)
       subs=(map feed @ud)
       wall=(list [via=feed =entry])
       refs=(set entry)
@@ -146,10 +152,48 @@
       pending=(map feed lyst)
       fans=(set ship)                  ::  ships that sent %follow
   ==
+::
++$  state-8
+  $:  %8
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry verdict:keep)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)
+      fans=(set ship)
+  ==
+::
++$  state-9
+  $:  %9
+      posts=(map id item:keep)
+      lists=(map lyst roster)
+      subs=(map feed @ud)
+      wall=(list [via=feed =entry])
+      refs=(set entry)
+      heads=(map entry head:keep)
+      seen=(map entry page)
+      off=(set ship)
+      sites=(map @t id)
+      follows=(set ship)
+      checked=(map entry verdict:keep)
+      keeping=(map entry (set lyst))
+      pending=(map feed lyst)
+      fans=(set ship)
+      nonce=@uv                        ::  this install's addresses
+      refollow=@da                     ::  the next daily re-%follow, to heal stalled tails
+  ==
 --
 ::
 %-  agent:dbug
-=|  state-7
+=|  state-9
 =*  state  -
 ^-  agent:gall
 =<
@@ -160,6 +204,9 @@
 ::
 ++  on-init
   ^-  (quip card _this)
+  =:  nonce     (end 5 eny.bowl)
+      refollow  (add now.bowl ~d1)
+    ==
   :_  this
   =/  boot=(list card)
     :~  [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
@@ -171,6 +218,7 @@
     boot
     assets:hc
     (turn (unreached:hc known:hc) announce:hc)
+    ~[(refollow-timer:hc refollow)]
   ==
 ::
 ++  on-save   !>(state)
@@ -178,8 +226,27 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
+  ::  every load re-asks whoever we follow where their index is now: an
+  ::  address stalled by a reinstall on either side heals on the next OTA
+  ?:  ?=(%9 -.old)
+    =.  state  old
+    :_  this
+    :(weld retail-all:hc refollow-all:hc (boot:hc sites posts))
+  ?:  ?=(%8 -.old)
+    =.  state  (nine:hc old)
+    =^  moved  lists  republish:hc
+    :_  this
+    ;:  weld
+      moved
+      (turn ~(tap in fans) probe:hc)
+      (turn ~(tap in targets:hc) announce:hc)
+      retail-all:hc
+      refollow-all:hc
+      ~[(refollow-timer:hc refollow)]
+      (boot:hc sites posts)
+    ==
   ::
-  =/  new=state-7
+  =/  seven=state-7
     ?:  ?=(%7 -.old)  old
     =/  six=state-6
     ?-  -.old
@@ -263,14 +330,37 @@
   ::  follows from before %7 never said so; tell them once
   =/  told=(list card)
     ?:  ?=(%7 -.old)  ~
-    (turn ~(tap in follows.new) |=(w=ship (tell:hc w [%follow ~])))
-  :_  this(state new)
-  %+  weld  told
-  ^-  (list card)
-  :^    [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
-      (index-card:hc sites.new posts.new)
-    (linkmap-card:hc sites.new)
-  assets:hc
+    (turn ~(tap in follows.seven) |=(w=ship (tell:hc w [%follow ~])))
+  =.  state
+    %-  nine:hc
+    :*  %8
+        posts.seven  (unsalt:hc lists.seven)  subs.seven
+        wall.seven  refs.seven  heads.seven  seen.seven
+        off.seven  sites.seven  follows.seven
+        checked.seven  keeping.seven  pending.seven  fans.seven
+    ==
+  ::  every gated list moves under its coop: the log re-addressed, its posts
+  ::  tended there, and each member re-invited to the list's one address
+  =^  moved  lists  recoop:hc
+  =^  regrown  lists  republish:hc
+  ::  invites that arrived from a writer who moved first are re-addresses,
+  ::  not offers: take them, and stop tailing the addresses they replace
+  =/  sw  sweep:hc
+  =:  subs     subs.sw
+      follows  follows.sw
+      pending  pending.sw
+    ==
+  :_  this
+  ;:  weld
+    told  moved  regrown  cards.sw
+    (turn ~(tap in fans) probe:hc)
+    (turn ~(tap in targets:hc) announce:hc)
+    retail-all:hc
+    refollow-all:hc
+    ~[(refollow-timer:hc refollow)]
+    (give:hc [%pending (wait-of:hc pending)])
+    (boot:hc sites posts)
+  ==
 ::
 ++  on-peek
   |=  =path
@@ -287,14 +377,25 @@
     [%x %follows ~]  ``noun+!>(follows)
     [%x %fans ~]     ``noun+!>(fans)
     [%x %pending ~]  ``noun+!>(pending)
+    [%x %nonce ~]    ``noun+!>(nonce)
+  ::
+  ::  gall asks this on every remote read under a coop: is the reader in?
+      [%c %list @ @ ~]
+    =/  l=(unit @tas)  (slaw %tas i.t.t.path)
+    =/  w=(unit ship)  (slaw %p i.t.t.t.path)
+    =/  in=?
+      ?~  l  %.n
+      ?~  w  %.n
+      ?~  got=(~(get by lists) u.l)  %.n
+      (~(has in members.u.got) u.w)
+    ``noun+!>(in)
   ::
   ::  for %keep-mail: which lists a post of ours fanned to, so the mailer
   ::  sends %public posts only
       [%x %audience @ ~]
     =/  art=id  (slav %uv i.t.t.path)
     ?.  (~(has by posts) art)  ``noun+!>(*(unit (set lyst)))
-    =/  e=entry  [our.bowl (welp (base:hc first:hc) (item-spur:hc art))]
-    ``noun+!>(`(unit (set lyst))``(fanned:hc e))
+    ``noun+!>(`(unit (set lyst))``(fanned:hc art))
   ::
   ::  for %keep-talk: may `who` be handed this article's pointer at all
       [%x %may-read @ @ ~]
@@ -341,13 +442,9 @@
             (sign-id:hc lyfe id)
         ==
       =/  =item:keep     [hed page]
-      =/  spur=path      (item-spur:hc id)
-      =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
-      =^  cards  lists   (fan-out:hc entry ~(tap in to))
-      =/  grows=(list card)
-        :~  [%pass /grow %grow (welp spur /head) noun+hed]
-            [%pass /grow %grow (welp spur /body) noun+page]
-        ==
+      =/  =entry         [our.bowl (welp (base:hc first:hc) (item-spur:hc id))]
+      =^  cards  lists   (fan-out:hc id ~(tap in to))
+      =/  grows=(list card)  (publish:hc id hed page ~(tap in to))
       =/  new-posts  (~(put by posts) id item)
       =/  url=@t
         ?.  (~(has in to) %public)  ''
@@ -402,9 +499,9 @@
     ::  ---- unpublishing ------------------------------------------------------
         %delete
       ?.  (~(has by posts) id.act)  `this
-      =/  spur=path      (item-spur:hc id.act)
-      =/  =entry         [our.bowl (welp (base:hc first:hc) spur)]
-      =^  cards  lists   (unfan:hc entry)
+      =/  =entry         [our.bowl (welp (base:hc first:hc) (item-spur:hc id.act))]
+      =/  on=(list lyst)  ~(tap in (fanned:hc id.act))
+      =^  cards  lists   (unfan:hc id.act)
       =/  new-posts      (~(del by posts) id.act)
       =/  url=(unit @t)  (site-of:hc entry)
       =/  new-sites      ?~(url sites (~(del by sites) u.url))
@@ -416,10 +513,7 @@
         ==
       ::  a reposter re-grew our bytes under their own /item, so tombing ours
       ::  ends our copy and not theirs
-      =/  buries=(list card)
-        :~  [%pass /tomb %tomb [%ud first:hc] (welp spur /head)]
-            [%pass /tomb %tomb [%ud first:hc] (welp spur /body)]
-        ==
+      =/  buries=(list card)  (bury:hc id.act on)
       :_  this(posts new-posts, sites new-sites)
       %-  zing
       :~  cards  buries  web
@@ -441,17 +535,19 @@
     ::  ---- lists -------------------------------------------------------------
         %list
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
-      =/  lst=roster
-        ?^  got=(~(get by lists) lyst.act)  u.got
-        [~ (mint:hc lyst.act) ~]
+      =/  had=(unit roster)  (~(get by lists) lyst.act)
+      =/  lst=roster  ?^(had u.had [~ ~])
       =/  new=(list ship)  ~(tap in (~(dif in members.act) members.lst))
+      =/  gone=?  !=(~ (~(dif in members.lst) members.act))
       =/  all  (~(put by lists) lyst.act lst(members members.act))
+      =/  keyed=(list card)
+        ?~  had  (found:hc lyst.act)
+        ?.(gone ~ (rekey:hc lyst.act members.act))
       =/  hail=(list card)
-        %-  zing
-        %+  turn  new
-        |=(w=ship (welcome:hc lyst.act salt.lst log.lst w))
+        ?:  gone  ~
+        (turn new |=(w=ship (welcome:hc lyst.act w)))
       :_  this(lists all)
-      (weld hail (give:hc (lists-of:hc all)))
+      :(weld keyed hail (give:hc (lists-of:hc all)))
     ::
         %admit
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
@@ -460,24 +556,19 @@
       =/  all
         %+  ~(put by lists)  lyst.act
         u.got(members (~(uni in members.u.got) who.act))
-      =/  hail=(list card)
-        %-  zing
-        %+  turn  new
-        |=(w=ship (welcome:hc lyst.act salt.u.got log.u.got w))
+      =/  hail=(list card)  (turn new |=(w=ship (welcome:hc lyst.act w)))
       :_  this(lists all)
       (weld hail (give:hc (lists-of:hc all)))
     ::
         %evict
       ?:  =(%public lyst.act)  ~|(%keep-public-has-no-members !!)
       ?~  got=(~(get by lists) lyst.act)  ~|([%keep-no-such-list lyst.act] !!)
-      =/  all
-        %+  ~(put by lists)  lyst.act
-        u.got(members (~(dif in members.u.got) who.act))
+      =/  left=(set ship)  (~(dif in members.u.got) who.act)
+      =/  all  (~(put by lists) lyst.act u.got(members left))
       :_  this(lists all)
-      (give:hc (lists-of:hc all))
+      (weld (rekey:hc lyst.act left) (give:hc (lists-of:hc all)))
     ::
-    ::  the log's grown revisions stay readable and members keep their keens;
-    ::  gone from lists just means nothing new fans out to it
+    ::  the coop stays; with no roster behind it, on-peek admits nobody
         %unlist
       ?:  =(%public lyst.act)  ~|(%keep-cannot-unlist-public !!)
       ?.  (~(has by lists) lyst.act)  `this
@@ -486,15 +577,12 @@
       (give:hc (lists-of:hc all))
     ::
     ::  ---- following ---------------------------------------------------------
+    ::  the index address is theirs to tell: %follow is answered with it
         %sub
-      =/  f=feed  [who.act /index]
-      =/  at=@ud  (~(gut by subs) f first)
-      =/  ss      (~(put by subs) f at)
-      =/  ff      (~(put in follows) who.act)
-      :_  this(subs ss, follows ff)
-      :+  (tail:hc f at)
-        (tell:hc who.act [%follow ~])
-      (give:hc (peers-of:hc ss off))
+      =/  ff  (~(put in follows) who.act)
+      :_  this(follows ff)
+      :-  (tell:hc who.act [%follow ~])
+      (give:hc (peers-of:hc subs off))
     ::
         %unsub
       =/  ff  (~(del in follows) who.act)
@@ -542,32 +630,56 @@
     ::
         %invite
       =/  f=feed  [src.bowl path.gos]
-      ?:  (~(has by subs) f)  `this
+      ::  to a member it is "ask again": a revision gall refused while we
+      ::  were out is keened from where it stalled
+      ?^  at=(~(get by subs) f)
+        :_  this
+        ~[(tail:hc f u.at)]
       ?:  (~(has by pending) f)  `this
+      ::  the same list at a new address — a reinstall, or the move under
+      ::  its coop — is a re-address, not an offer
+      ?:  (has-kind:hc f)
+        =/  r  (readdress:hc f)
+        :_  this(subs subs.r, follows follows.r)
+        (weld cards.r (give:hc (peers-of:hc subs.r off)))
       ::  any ship may invite us, so bound what one of them can park here
       ?:  (gte (waiting:hc src.bowl) 8)  `this
       =/  pp  (~(put by pending) f lyst.gos)
       :_  this(pending pp)
       (give:hc [%pending (wait-of:hc pp)])
     ::
+    ::  where their index is: taken from a pal, from anyone we asked with
+    ::  %follow, or from a writer we already tail, whose address it replaces
         %announce
-      =/  f=feed  [src.bowl /index]
-      ?.  &((~(has in targets:hc) src.bowl) !(~(has by subs) f))
+      =/  f=feed  [src.bowl path.gos]
+      ?.  (index-kind:kc path.gos)  `this
+      ::  an address we hold is "ask again": the keen is re-issued from
+      ::  where it stalled, which a reload or a refused read may have left
+      ?^  at=(~(get by subs) f)
+        :_  this
+        ~[(tail:hc f u.at)]
+      ?.  ?|  (~(has in targets:hc) src.bowl)
+              (~(has in follows) src.bowl)
+              (has-kind:hc f)
+          ==
         `this
-      =/  ss  (~(put by subs) f first)
+      =/  r  (readdress:hc f)
       =/  oo  (~(del in off) src.bowl)
-      :_  this(subs ss, off oo)
-      :-  (tail:hc f first)
-      (give:hc (peers-of:hc ss oo))
+      :_  this(subs subs.r, follows follows.r, off oo)
+      (weld cards.r (give:hc (peers-of:hc subs.r oo)))
     ::
-    ::  answered once, so a follow that crossed an upgrade lands both ways
+    ::  every %follow is answered with our address; the mutual %follow once,
+    ::  so a follow that crossed an upgrade lands both ways
         %follow
-      ?:  (~(has in fans) src.bowl)  `this
+      =/  new=?  !(~(has in fans) src.bowl)
       =/  ff  (~(put in fans) src.bowl)
       :_  this(fans ff)
-      %+  weld  (give:hc [%fans ff])
-      ?.  (~(has in follows) src.bowl)  ~
-      ~[(tell:hc src.bowl [%follow ~])]
+      ;:  weld
+        ~[(tell:hc src.bowl [%announce (feed-spur:kc %public nonce)])]
+        ?.(new ~ (give:hc [%fans ff]))
+        ?.  &(new (~(has in follows) src.bowl))  ~
+        ~[(tell:hc src.bowl [%follow ~])]
+      ==
     ::
         %unfollow
       =/  ff  (~(del in fans) src.bowl)
@@ -604,14 +716,13 @@
       =/  oo  (~(put in off) who)
       :_  this(off oo)
       (give:hc (peers-of:hc subs oo))
-    =/  f=feed  [who /index]
-    =/  ss      (~(put by subs) f first)
-    =/  ff      ?:(?=(%hey i.wire) (~(put in follows) who) follows)
-    :_  this(subs ss, follows ff)
-    :-  (tail:hc f first)
+    ::  they run %keep; their address comes back with their %announce
+    =/  oo  (~(del in off) who)
+    =/  ff  ?:(?=(%hey i.wire) (~(put in follows) who) follows)
+    :_  this(follows ff, off oo)
     %+  weld
       ?.(?=(%hey i.wire) ~ ~[(tell:hc who [%follow ~])])
-    (give:hc (peers-of:hc ss off))
+    (give:hc (peers-of:hc subs oo))
   ::
   ::  unacked on purpose — see %follow in /sur/keep
       [%fan @ ~]  `this
@@ -670,6 +781,14 @@
   ?:  ?=([%eyre %bound *] sign-arvo)
     ~?  !accepted.sign-arvo  %keep-eyre-rejected-binding
     `this
+  ::  a wake for any timer but the current one is a leftover from an
+  ::  earlier load; only the current one re-arms
+  ?:  ?=([%behn %wake *] sign-arvo)
+    ?.  ?=([%refollow @ ~] wire)  `this
+    ?.  =(refollow (slav %da i.t.wire))  `this
+    =.  refollow  (add now.bowl ~d1)
+    :_  this
+    (weld refollow-all:hc ~[(refollow-timer:hc refollow)])
   ::  a keen returns %sage, not %tune; the value is q.q.sage
   ?.  ?=([%ames %sage *] sign-arvo)  (on-arvo:def wire sign-arvo)
   =/  =sage:mess:ames  sage.sign-arvo
@@ -751,8 +870,11 @@
     =/  at=@ud    (slav %ud i.t.wire)
     =/  f=feed    [(slav %p i.t.t.wire) t.t.t.wire]
     ::  %sage collapses tombstone and failure into one empty q; step over
-    ::  it rather than stall forever on a revision that will never come
+    ::  it rather than stall forever on a revision that will never come.
+    ::  under a coop an empty answer is gall refusing us: stay put, and
+    ::  the writer's next invite re-keens this revision
     ?:  ?=(~ q.sage)
+      ?:  (gated:kc path.f)  `this
       :_  this(subs (~(put by subs) f +(at)))
       ~[(tail:hc f +(at))]
     =/  got  (mule |.(;;((list entry) q.q.sage)))
@@ -760,7 +882,15 @@
       %-  (slog leaf+"keep: unreadable index from {<ship.f>}" ~)
       :_  this(subs (~(put by subs) f +(at)))
       ~[(tail:hc f +(at))]
-    =/  new=(list entry)  (skip p.got ~(has in refs))
+    ::  a list that moved under its coop re-addresses every post it holds;
+    ::  the id says it is the same post
+    =/  known=(set [ship id])  (ids-of:hc refs)
+    =/  new=(list entry)
+      %+  skip  p.got
+      |=  e=entry
+      ?:  (~(has in refs) e)  %.y
+      =/  i  (id-of:kc path.e)
+      &(?=(^ i) (~(has in known) [ship.e u.i]))
     =/  fresh=(set entry)  (sy new)
     ::  a revision carries the whole index, so what it omits, the author deleted
     =/  cut  (prune:hc f p.got)
@@ -844,12 +974,38 @@
   (~(put by $(es t.es)) p.i.es ?:(q.i.es %good %forged))
 ::
 ++  wipe-logs
-  |=  m=(map lyst roster)
-  ^-  (map lyst roster)
-  =/  ls=(list [p=lyst q=roster])  ~(tap by m)
-  |-  ^-  (map lyst roster)
+  |=  m=(map lyst roster-7)
+  ^-  (map lyst roster-7)
+  =/  ls=(list [p=lyst q=roster-7])  ~(tap by m)
+  |-  ^-  (map lyst roster-7)
   ?~  ls  ~
   (~(put by $(ls t.ls)) p.i.ls q.i.ls(log ~))
+::
+++  unsalt
+  |=  m=(map lyst roster-7)
+  ^-  (map lyst roster)
+  =/  ls=(list [p=lyst q=roster-7])  ~(tap by m)
+  |-  ^-  (map lyst roster)
+  ?~  ls  ~
+  (~(put by $(ls t.ls)) p.i.ls [members.q.i.ls log.q.i.ls])
+::
+++  ids-of
+  |=  s=(set entry)
+  ^-  (set [ship id])
+  =/  es=(list entry)  ~(tap in s)
+  |-  ^-  (set [ship id])
+  ?~  es  ~
+  =/  more  $(es t.es)
+  ?~  i=(id-of:kc path.i.es)  more
+  (~(put in more) [ship.i.es u.i])
+::
+++  boot
+  |=  [sites=(map @t id) posts=(map id item:keep)]
+  ^-  (list card)
+  :^    [%pass /bind %arvo %e %connect [~ /keep] dap.bowl]
+      (index-card sites posts)
+    (linkmap-card sites)
+  assets
 ::
 ++  known
   ^-  (set ship)
@@ -861,48 +1017,213 @@
 ++  first        first:kc
 ++  base         base:kc
 ++  item-spur    item-spur:kc
-++  member-spur  member-spur:kc
-++  mint         |=(=lyst ^-(@uvH (mint:kc eny.bowl lyst)))
+::
+++  entry-in
+  |=  [=lyst =id]
+  ^-  entry
+  [our.bowl (welp (base first) (post-spur:kc lyst id))]
+::
+::  %germ makes a coop's key, or turns it over if the coop already has one
+++  rotate  |=(=lyst ^-(card [%pass /germ %germ (coop:kc lyst)]))
+::
+::  a turned key answers no keen parked under the old one, the evicted
+::  ship's or anyone's: every member left is told to ask again
+++  rekey
+  |=  [=lyst members=(set ship)]
+  ^-  (list card)
+  [(rotate lyst) (turn ~(tap in members) |=(w=ship (welcome lyst w)))]
+::
+::  a new gated list: its key, and revision 1 so a member's first keen answers
+++  found
+  |=  =lyst
+  ^-  (list card)
+  ~[(rotate lyst) (spread lyst ~)]
 ::
 ++  spread
-  |=  [=lyst lst=roster es=(list entry)]
-  ^-  (list card)
+  |=  [=lyst es=(list entry)]
+  ^-  card
+  =/  spur=path  (feed-spur:kc lyst nonce)
   ?:  =(%public lyst)
-    ~[[%pass /grow %grow /index noun+es]]
-  %+  turn  ~(tap in members.lst)
-  |=  w=ship
-  [%pass /grow %grow (member-spur lyst salt.lst w) noun+es]
+    [%pass /grow %grow spur noun+es]
+  [%pass /grow %tend (coop:kc lyst) (slag 2 spur) noun+es]
+::
+::  a copy per list, not per member: the coop, not the address, is what
+::  keeps a body from a non-member
+++  publish
+  |=  [=id hed=head:keep bod=page to=(list lyst)]
+  ^-  (list card)
+  =/  spur=path  (item-spur id)
+  %-  zing
+  %+  turn  to
+  |=  l=lyst
+  ^-  (list card)
+  ?:  =(%public l)
+    :~  [%pass /grow %grow (welp spur /head) noun+hed]
+        [%pass /grow %grow (welp spur /body) noun+bod]
+    ==
+  :~  [%pass /grow %tend (coop:kc l) (welp spur /head) noun+hed]
+      [%pass /grow %tend (coop:kc l) (welp spur /body) noun+bod]
+  ==
+::
+++  bury
+  |=  [=id on=(list lyst)]
+  ^-  (list card)
+  %-  zing
+  %+  turn  on
+  |=  l=lyst
+  ^-  (list card)
+  =/  spur=path  (post-spur:kc l id)
+  :~  [%pass /tomb %tomb [%ud first] (welp spur /head)]
+      [%pass /tomb %tomb [%ud first] (welp spur /body)]
+  ==
 ::
 ++  fan-out
-  |=  [e=entry to=(list lyst)]
+  |=  [=id to=(list lyst)]
   ^-  [(list card) (map lyst roster)]
   =/  lsts  lists
   |-  ^-  [(list card) (map lyst roster)]
   ?~  to  [~ lsts]
-  =/  lst=roster
-    ?^  got=(~(get by lsts) i.to)  u.got
-    [~ (mint i.to) ~]
-  =/  new=(list entry)
-    =/  old=(list entry)  log.lst
-    |-  ^-  (list entry)
-    ?~  old  ~[e]
-    [i.old $(old t.old)]
-  =/  cs=(list card)  (spread i.to lst new)
+  =/  had=(unit roster)  (~(get by lsts) i.to)
+  =/  lst=roster  ?^(had u.had [~ ~])
+  =/  new=(list entry)  (snoc log.lst (entry-in i.to id))
+  ::  a list first named by a post needs its key before its first %tend
+  =/  keyed=(list card)
+    ?:  |(?=(^ had) =(%public i.to))  ~
+    ~[(rotate i.to)]
   =^  more  lsts  $(to t.to, lsts (~(put by lsts) i.to lst(log new)))
-  [(weld cs more) lsts]
+  [:(weld keyed ~[(spread i.to new)] more) lsts]
 ::
 ++  unfan
-  |=  e=entry
+  |=  =id
   ^-  [(list card) (map lyst roster)]
   =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
   =/  lsts  lists
   |-  ^-  [(list card) (map lyst roster)]
   ?~  ls  [~ lsts]
-  =/  new=(list entry)  (drop-entry log.q.i.ls e)
+  =/  new=(list entry)  (drop-id:kc log.q.i.ls id)
   ?:  =(new log.q.i.ls)  $(ls t.ls)
-  =/  cs=(list card)  (spread p.i.ls q.i.ls new)
   =^  more  lsts  $(ls t.ls, lsts (~(put by lsts) p.i.ls q.i.ls(log new)))
-  [(weld cs more) lsts]
+  [[(spread p.i.ls new) more] lsts]
+::
+::  the %7 -> %8 move: every gated log re-addressed under its coop, the
+::  posts it names tended there, and each member told the new address
+++  recoop
+  ^-  [(list card) (map lyst roster)]
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  =|  cs=(list card)
+  =/  out  lists
+  |-  ^-  [(list card) (map lyst roster)]
+  ?~  ls  [cs out]
+  ?:  =(%public p.i.ls)  $(ls t.ls)
+  =/  ids=(list id)
+    =/  es=(list entry)  log.q.i.ls
+    |-  ^-  (list id)
+    ?~  es  ~
+    ?~  i=(id-of:kc path.i.es)  $(es t.es)
+    [u.i $(es t.es)]
+  =/  log=(list entry)  (turn ids |=(i=id (entry-in p.i.ls i)))
+  =/  tends=(list card)
+    %-  zing
+    %+  turn  ids
+    |=  i=id
+    ^-  (list card)
+    ?~  got=(~(get by posts) i)  ~
+    (publish i head.u.got page.u.got ~[p.i.ls])
+  =/  hail=(list card)
+    (turn ~(tap in members.q.i.ls) |=(w=ship (welcome p.i.ls w)))
+  %=  $
+    ls   t.ls
+    out  (~(put by out) p.i.ls q.i.ls(log log))
+    cs   :(weld cs ~[(rotate p.i.ls)] tends ~[(spread p.i.ls log)] hail)
+  ==
+::
+::  ---- a list's address moved -------------------------------------------
+::
+::  do we already tail this writer for the same thing, at any address
+++  has-kind
+  |=  f=feed
+  ^-  ?
+  =/  fs=(list [p=feed q=@ud])  ~(tap by subs)
+  |-  ^-  ?
+  ?~  fs  %.n
+  ?:  &(=(ship.f ship.p.i.fs) (same-kind:kc path.p.i.fs path.f))  %.y
+  $(fs t.fs)
+::
+::  take an address in place of every one of the same kind from that writer
+++  readdress
+  |=  f=feed
+  ^-  [cards=(list card) subs=(map feed @ud) follows=(set ship)]
+  =/  fs=(list [p=feed q=@ud])  ~(tap by subs)
+  =/  ss  (~(put by subs) f first)
+  =|  cs=(list card)
+  |-  ^-  [cards=(list card) subs=(map feed @ud) follows=(set ship)]
+  ?~  fs
+    :*  :+  (tail f first)  (tell ship.f [%follow ~])  cs
+        ss
+        (~(put in follows) ship.f)
+    ==
+  ?:  =(f p.i.fs)  $(fs t.fs)
+  ?.  &(=(ship.f ship.p.i.fs) (same-kind:kc path.p.i.fs path.f))  $(fs t.fs)
+  $(fs t.fs, ss (~(del by ss) p.i.fs), cs [(halt p.i.fs q.i.fs) cs])
+::
+++  refollow-all
+  ^-  (list card)
+  (turn ~(tap in follows) |=(w=ship (tell w [%follow ~])))
+::
+::  a parked keen does not survive the agent being reloaded; every tail is
+::  re-issued from where it was, and a duplicate parks beside the original
+++  retail-all
+  ^-  (list card)
+  =/  fs=(list [p=feed q=@ud])  ~(tap by subs)
+  |-  ^-  (list card)
+  ?~  fs  ~
+  [(tail p.i.fs q.i.fs) $(fs t.fs)]
+::
+++  refollow-timer
+  |=  at=@da
+  ^-  card
+  [%pass /refollow/(scot %da at) %arvo %b %wait at]
+::
+++  nine
+  |=  eight=state-8
+  ^-  state-9
+  :*  %9
+      posts.eight  lists.eight  subs.eight
+      wall.eight  refs.eight  heads.eight  seen.eight
+      off.eight  sites.eight  follows.eight
+      checked.eight  keeping.eight  pending.eight  fans.eight
+      (end 5 eny.bowl)
+      (add now.bowl ~d1)
+  ==
+::
+::  a new nonce: every index regrown at its new address, every gated list
+::  re-keyed and its members re-invited there
+++  republish
+  ^-  [(list card) (map lyst roster)]
+  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
+  =|  cs=(list card)
+  |-  ^-  [(list card) (map lyst roster)]
+  ?~  ls  [cs lists]
+  =/  more=(list card)
+    ?:  =(%public p.i.ls)  ~[(spread p.i.ls log.q.i.ls)]
+    [(spread p.i.ls log.q.i.ls) (rekey p.i.ls members.q.i.ls)]
+  $(ls t.ls, cs (weld cs more))
+::
+++  sweep
+  ^-  [cards=(list card) subs=(map feed @ud) follows=(set ship) pending=(map feed lyst)]
+  =/  ps=(list [p=feed q=lyst])  ~(tap by pending)
+  =|  cs=(list card)
+  |-  ^-  [cards=(list card) subs=(map feed @ud) follows=(set ship) pending=(map feed lyst)]
+  ?~  ps  [cs subs follows pending]
+  ?.  (has-kind p.i.ps)  $(ps t.ps)
+  =/  r  (readdress p.i.ps)
+  %=  $
+    ps       t.ps
+    cs       (weld cs cards.r)
+    subs     subs.r
+    follows  follows.r
+    pending  (~(del by pending) p.i.ps)
+  ==
 ::
 ++  prune
   |=  [f=feed es=(list entry)]
@@ -917,13 +1238,11 @@
   [[entry.i.w gone.more] rest.more]
 ::
 ++  welcome
-  |=  [=lyst salt=@uvH log=(list entry) who=ship]
-  ^-  (list card)
-  =/  spur  (member-spur lyst salt who)
-  :~  [%pass /grow %grow spur noun+log]
-      :^  %pass  /poke/(scot %p who)  %agent
-      [[who %keep] %poke %keep-gossip !>(`gossip:keep`[%invite lyst spur])]
-  ==
+  |=  [=lyst who=ship]
+  ^-  card
+  :^  %pass  /poke/(scot %p who)  %agent
+  :+  [who %keep]  %poke
+  keep-gossip+!>(`gossip:keep`[%invite lyst (feed-spur:kc lyst nonce)])
 ::
 ++  from-public
   |=  e=entry
@@ -931,7 +1250,7 @@
   =/  w  wall
   |-  ^-  ?
   ?~  w  %.n
-  ?:  &(=(e entry.i.w) =(/index path.via.i.w))  %.y
+  ?:  &(=(e entry.i.w) (index-kind:kc path.via.i.w))  %.y
   $(w t.w)
 ::
 ++  announce  (hail /hey)
@@ -948,13 +1267,16 @@
   |=  who=ship
   ^-  card
   :^  %pass  (welp pre /(scot %p who))  %agent
-  [[who %keep] %poke %keep-gossip !>(`gossip:keep`[%announce ~])]
+  :+  [who %keep]  %poke
+  keep-gossip+!>(`gossip:keep`[%announce (feed-spur:kc %public nonce)])
 ::
+::  secret=& is the coop key exchange: gall fetches the list's key from the
+::  writer first, and a non-member gets an empty %sage instead
 ++  tail
   |=  [f=feed at=@ud]
   ^-  card
   :^  %pass  [%feed (scot %ud at) (scot %p ship.f) path.f]  %keen
-  [%.n ship.f (welp (base at) path.f)]
+  [(gated:kc path.f) ship.f (welp (base at) path.f)]
 ::
 ++  halt
   |=  [f=feed at=@ud]
@@ -966,13 +1288,33 @@
   |=  e=entry
   ^-  card
   :^  %pass  [%head (scot %p ship.e) path.e]  %keen
-  [%.n ship.e (welp path.e /head)]
+  [(gated:kc path.e) ship.e (welp path.e /head)]
 ::
 ++  fetch-body
   |=  e=entry
   ^-  card
   :^  %pass  [%body (scot %p ship.e) path.e]  %keen
-  [%.n ship.e (welp path.e /body)]
+  [(gated:kc path.e) ship.e (welp path.e /body)]
+::
+::  a direct link names an id and a ship. a walled copy is the address;
+::  failing that, a gated post is read through a list of theirs we hold
+::  an invite to, taken or not — where a member could have been sent it
+++  resolve
+  |=  [who=ship =id]
+  ^-  entry
+  =/  open=entry  [who (welp (base first) (item-spur id))]
+  ?:  =(our.bowl who)  open
+  =/  es=(list entry)  (weld ~(tap in refs) ~(tap in ~(key by heads)))
+  |-  ^-  entry
+  ?^  es
+    ?:  &(=(who ship.i.es) =(`id (id-of:kc path.i.es)))  i.es
+    $(es t.es)
+  =/  fs=(list feed)
+    (weld ~(tap in ~(key by subs)) ~(tap in ~(key by pending)))
+  |-  ^-  entry
+  ?~  fs  open
+  ?.  &(=(who ship.i.fs) ?=(^ (list-of:kc path.i.fs)))  $(fs t.fs)
+  [who :(welp (base first) (scag 2 `path`path.i.fs) (item-spur id))]
 ::
 ::  ---- provenance ------------------------------------------------------------
 ::
@@ -1029,14 +1371,8 @@
   ^-  [cards=(list card) lists=(map lyst roster) posts=(map id item:keep)]
   =/  =id:keep
     (sain:keep who.hed lyfe.hed wen.hed terms.hed title.hed hash.hed)
-  =/  spur=path   (item-spur id)
-  =/  mine=entry  [our.bowl (welp (base first) spur)]
-  =^  cards  lists  (fan-out mine to)
-  =/  grows=(list card)
-    :~  [%pass /grow %grow (welp spur /head) noun+hed]
-        [%pass /grow %grow (welp spur /body) noun+bod]
-    ==
-  [(weld grows cards) lists (~(put by posts) id [hed bod])]
+  =^  cards  lists  (fan-out id to)
+  [(weld (publish id hed bod to) cards) lists (~(put by posts) id [hed bod])]
 ::
 ++  finish
   |=  [e=entry hed=head:keep bod=page]
@@ -1052,8 +1388,7 @@
   |=  [art=id who=ship]
   ^-  ?
   ?:  =(our.bowl who)  %.y
-  =/  e=entry  [our.bowl (welp (base first) (item-spur art))]
-  =/  fanned-on=(set lyst)  (fanned e)
+  =/  fanned-on=(set lyst)  (fanned art)
   ?:  (~(has in fanned-on) %public)  %.y
   =/  on=(list lyst)  ~(tap in fanned-on)
   |-  ^-  ?
@@ -1097,7 +1432,7 @@
   ?.  mail-live  ~
   ?~  i=(slaw %uv (last-of path.e))  ~
   ?.  (~(has by posts) u.i)  ~
-  ?.  (~(has in (fanned e)) %public)  ~
+  ?.  (~(has in (fanned u.i)) %public)  ~
   =/  st  mail-status
   `[set-up.st readers.st (~(get by stat.st) u.i)]
 ::
@@ -1334,33 +1669,28 @@
 ++  kept
   |=  e=entry
   ^-  ?
-  =/  mine=?
-    ?~  i=(slaw %uv (last-of path.e))  %.n
-    (~(has by posts) u.i)
-  ?:  mine  %.y
-  =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
-  |-  ^-  ?
-  ?~  ls  %.n
-  ?:  (has-entry log.q.i.ls e)  %.y
-  $(ls t.ls)
-::
-++  has-entry   has-entry:kc
-++  drop-entry  drop-entry:kc
+  ?~  i=(id-of:kc path.e)  %.n
+  (~(has by posts) u.i)
 ::
 ++  fanned
-  |=  e=entry
+  |=  =id
   ^-  (set lyst)
   =/  ls=(list [p=lyst q=roster])  ~(tap by lists)
   |-  ^-  (set lyst)
   ?~  ls  ~
   =/  more  $(ls t.ls)
-  ?:((has-entry log.q.i.ls e) (~(put in more) p.i.ls) more)
+  ?:((has-id:kc log.q.i.ls id) (~(put in more) p.i.ls) more)
 ::
+::  ours: every list we fanned it to. theirs: the list we were handed it
+::  under, which its coop address names
 ++  on-of
   |=  e=entry
   ^-  (list lyst)
-  ?.  =(our.bowl ship.e)  ~
-  ~(tap in (fanned e))
+  ?.  =(our.bowl ship.e)
+    ?~  l=(list-of:kc path.e)  ~
+    ~[u.l]
+  ?~  i=(id-of:kc path.e)  ~
+  ~(tap in (fanned u.i))
 ::
 ++  head-of
   |=  e=entry
@@ -1444,11 +1774,10 @@
     %+  turn  ps
     |=  [p=id:keep q=item:keep]
     ^-  cand:ui
-    =/  e=entry  [our.bowl (welp (base first) (item-spur p))]
     :*  wen.head.q
         (fall title.head.q 'untitled')
         our.bowl  p
-        (~(has in (fanned e)) %public)
+        (~(has in (fanned p)) %public)
     ==
   =/  known=(set id:keep)  (sy (turn out |=(c=cand:ui id.c)))
   =/  w  wall
@@ -1482,8 +1811,10 @@
   ?:  =('POST' method.req)
     ?.  (same-origin:kc header-list.req)  (paint rid [[403 ~] ~])
     (writes rid req)
-  =/  =pork:eyre
-    (rash url.req ;~(sfix apat:de-purl:html yquy:de-purl:html))
+  ::  yquy keeps the '?' on the first key
+  =/  [=pork:eyre quay=(list [@t @t])]
+    (rash url.req ;~(plug apat:de-purl:html yquy:de-purl:html))
+  =.  quay  (unwut quay)
   =/  ext=(unit @ta)  -.pork
   =/  seg=path        +.pork
   ?+    seg  (paint rid not-found:gen:srv)
@@ -1510,8 +1841,7 @@
     =/  src=tape
       ?~  title.head.u.got  bod
       "# {(trip u.title.head.u.got)}\0a\0a{bod}"
-    =/  on=(set lyst)
-      (fanned [our.bowl (welp (base first) (item-spur u.i))])
+    =/  on=(set lyst)  (fanned u.i)
     =/  aud=tape
       ?:  (~(has in on) %public)  "everyone"
       =/  to=(list lyst)  ~(tap in on)
@@ -1548,11 +1878,13 @@
       (user-rows u.who)
       ?.(&(=(our.bowl u.who) mail-live) ~ mailed-now)
       (badges-of u.who)
+      (slaw %tas (arg quay 'list'))
     ==
   ::
       [%keep %read @ @ ~]
     ?~  who=(slaw %p i.t.t.t.seg)  (paint rid not-found:gen:srv)
-    =/  e=entry  [u.who (welp (base first) /item/[i.t.t.seg])]
+    ?~  art=(slaw %uv i.t.t.seg)  (paint rid not-found:gen:srv)
+    =/  e=entry  (resolve u.who u.art)
     =/  bod=(unit page)  (body-of e)
     ;:  weld
       ?^  bod  ~
@@ -1586,6 +1918,15 @@
   (paint rid (manx-response:gen:srv man))
 ::
 ::  positional, not k= and v=: quay's faces are p and q
+++  unwut
+  |=  q=(list [@t @t])
+  ^-  (list [@t @t])
+  ?~  q  ~
+  =/  k=tape  (trip -.i.q)
+  ?~  k  q
+  ?.  =(63 i.k)  q                   ::  63: '?'
+  [[(crip t.k) +.i.q] t.q]
+::
 ++  arg
   |=  [q=(list [@t @t]) key=@t]
   ^-  @t

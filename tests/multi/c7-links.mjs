@@ -55,9 +55,10 @@ s.check('C7.4 and the head arrives with it',
   await h.got(h.until('peer to fetch the head', async () =>
     (await peer.get(read)).body.includes(`>${GATED}<`))));
 
+//  a gated post is read at its list's address, inside the coop
 s.check('C7.5 so the verdict forms',
   await h.got(h.until('peer to judge the body', () =>
-    h.verified(peer, h.entryHoon(h.HOST, idGated)))));
+    h.verified(peer, h.entryHoon(h.HOST, idGated, 'keep', 'c7paid')))));
 
 await h.poke(host, `[%delete ${idPub}]`);
 s.check('C7.6 deletion prunes the linkmap',

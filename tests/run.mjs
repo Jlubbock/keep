@@ -26,6 +26,8 @@ const SCENARIOS = [
     note: 'the relay is a stub in the scenario process on 127.0.0.1:8099' },
   { file: 'c9-substack.mjs', ships: [h.HOST, h.PEER],
     note: 'the substack is a stub in the scenario process on 127.0.0.1:8098' },
+  { file: 'c10-reinstall.mjs', ships: [h.HOST, h.PEER, h.WITNESS],
+    note: 'nukes %keep on the host mid-run; the host publishes under a new nonce afterwards' },
   //  LAST, and it must stay last: it nukes %keep on both ships to clear the
   //  subscriptions the scenarios above build, which would otherwise make its
   //  own assertions vacuously true.

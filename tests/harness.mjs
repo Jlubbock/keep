@@ -28,9 +28,14 @@ export const SHIPS = {
 //  HOST publishes and judges; PEER reads, is gated, and runs the rogue.
 //  WITNESS is a second member of the same list, never evicted — it is what
 //  turns "the evicted member stopped receiving" into "and nobody else noticed".
-export const HOST = '~dev';
+//
+//  ~dev must never be the writer until its golden is rebuilt: its %keep was
+//  poked and then nuked, and gall keeps a nuked agent's revision counters, so
+//  that golden can never serve /index revision 1 again — which is where every
+//  reader starts. ~mun and ~lex never grew anything.
+export const HOST = '~mun';
 export const PEER = '~lex';
-export const WITNESS = '~mun';
+export const WITNESS = '~dev';
 
 const pier = (n) => `${FLEET}/run/${n}`;
 const golden = (n) => `${FLEET}/golden/${n}`;
@@ -144,8 +149,10 @@ export const dojo = async (m, expr) => (await m.call('dojo/command', { command: 
 //  The address an item is served at. +base pins the AGENT, so a reader only
 //  ever fetches from that agent on the author's ship — which is why a forgery
 //  needs a peer running different code, not just a doctored pointer.
-export const entryHoon = (ship, id, agent = 'keep') =>
-  `[${ship} [%g %x '1' %${agent} %$ '1' %item '${id}' ~]]`;
+export const entryHoon = (ship, id, agent = 'keep', lyst = null) =>
+  lyst
+    ? `[${ship} [%g %x '1' %${agent} %$ '1' %list %${lyst} %item '${id}' ~]]`
+    : `[${ship} [%g %x '1' %${agent} %$ '1' %item '${id}' ~]]`;
 
 const yes = (text) => /%\.y/.test(text);
 
@@ -168,8 +175,9 @@ export const claims = async (m, entry, who, lyfe) => {
   return out.includes(who) && new RegExp(`\\b${lyfe}\\b`).test(out);
 };
 
+//  the index address carries the writer's install nonce, so match its shape
 export const tails = async (m, who) =>
-  yes(await dojo(m, `(~(has by .^((map [@p path] @ud) %gx /=keep=/subs/noun)) [${who} /index])`));
+  yes(await dojo(m, `(lien ~(tap by .^((map [@p path] @ud) %gx /=keep=/subs/noun)) |=([[s=@p p=path] @ud] &(=(s ${who}) ?=([@ %index ~] p))))`));
 
 export const follows = async (m, who) =>
   yes(await dojo(m, `(~(has in .^((set @p) %gx /=keep=/follows/noun)) ${who})`));
@@ -271,7 +279,16 @@ export async function boot(n, { timeout = 180000 } = {}) {
 
 export async function up(patps, { fresh = false } = {}) {
   const names = patps.map((p) => SHIPS[p].name);
-  for (const n of names) if (fresh || !existsSync(pier(n))) clone(n);
+  //  golden and run share a port: a golden still shutting down after a bake
+  //  answers on it, and a clone booted now would be poked in its place
+  for (const n of names) {
+    if (!fresh && existsSync(pier(n))) continue;
+    kill(n);
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline && (await isUp(n))) await new Promise((r) => setTimeout(r, 1500));
+    if (await isUp(n)) throw new Error(`~${n}: port still answering — a golden is up on it`);
+    clone(n);
+  }
   const live = await Promise.all(names.map(isUp));
   await Promise.all(names.filter((_, i) => !live[i]).map((n) => boot(n)));
   return names;

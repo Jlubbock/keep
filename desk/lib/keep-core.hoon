@@ -42,14 +42,49 @@
 ++  talk-spur  |=(art=id:keep ^-(path /talk/[(scot %uv art)]))
 ++  talk-at-spur  |=(art=id:keep ^-(path /talk-at/[(scot %uv art)]))
 ::
-++  member-spur
-  |=  [=lyst:keep salt=@uvH who=ship]
-  ^-  path
-  ?:  =(%public lyst)  /index
-  /list/[(scot %uv (shas salt (jam [lyst who])))]
+::  a gated list is a coop: gall serves everything under it encrypted, and
+::  asks on-peek per request whether the reader is a member
+++  coop  |=(=lyst:keep ^-(path /list/[lyst]))
 ::
-::  never bunt a salt: a zero salt makes every member address derivable
-++  mint  |=([eny=@uvJ =lyst:keep] ^-(@uvH (sham (mix eny (jam lyst)))))
+::  the install nonce keeps every address fresh across a nuke: gall never
+::  serves a revision number twice, so a reinstalled agent starts elsewhere
+++  feed-spur
+  |=  [=lyst:keep nonce=@uv]
+  ^-  path
+  =/  tail=path  /[(scot %uv nonce)]/index
+  ?:(=(%public lyst) tail (welp (coop lyst) tail))
+::
+++  index-kind  |=(p=path ^-(? |(?=([%index ~] p) ?=([@ %index ~] p))))
+::
+::  two addresses from one writer for the same thing: its index, or one of
+::  its lists. an old per-member address names no list, so it matches any
+++  same-kind
+  |=  [a=path b=path]
+  ^-  ?
+  ?:  &((index-kind a) (index-kind b))  %.y
+  ?:  &((old-member a) (gated b))  %.y
+  =/  la  (list-of a)
+  =/  lb  (list-of b)
+  &(?=(^ la) ?=(^ lb) =(u.la u.lb))
+::
+++  post-spur
+  |=  [=lyst:keep =id:keep]
+  ^-  path
+  ?:(=(%public lyst) (item-spur id) (welp (coop lyst) (item-spur id)))
+::
+++  gated  |=(p=path ^-(? ?=(^ (find /list p))))
+::
+::  the list a coop address is under: what a reader was handed the post as
+++  list-of
+  |=  p=path
+  ^-  (unit @tas)
+  ?~  p  ~
+  ?~  t.p  ~
+  ?:  =(%list i.p)  (slaw %tas i.t.p)
+  $(p t.p)
+::
+::  the per-member address lists had before coops; only a migration meets one
+++  old-member  |=(p=path ^-(? ?=([%list @ ~] p)))
 ::
 ++  last-of
   |=  p=path
@@ -58,18 +93,20 @@
   ?~  t.p  i.p
   $(p t.p)
 ::
-++  has-entry
-  |=  [es=(list entry:keep) e=entry:keep]
+++  id-of  |=(p=path ^-((unit id:keep) (slaw %uv (last-of p))))
+::
+++  has-id
+  |=  [es=(list entry:keep) =id:keep]
   ^-  ?
   ?~  es  %.n
-  ?:  =(i.es e)  %.y
+  ?:  =(`id (id-of path.i.es))  %.y
   $(es t.es)
 ::
-++  drop-entry
-  |=  [es=(list entry:keep) e=entry:keep]
+++  drop-id
+  |=  [es=(list entry:keep) =id:keep]
   ^-  (list entry:keep)
   ?~  es  ~
-  ?:  =(i.es e)  $(es t.es)
+  ?:  =(`id (id-of path.i.es))  $(es t.es)
   [i.es $(es t.es)]
 ::
 ::  ---- commenting tiers -------------------------------------------------------

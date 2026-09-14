@@ -76,6 +76,11 @@ for (const s of ships) {
   try { await m.call('mcp/install-app', { ship: s.patp, desk: h.DESK }); console.log('  installed'); }
   catch (e) { console.log(`  install: ${e.message.slice(0, 90)}`); }
 
+  //  never |nuke here to "clean" a golden: gall keeps a nuked agent's revision
+  //  counters, so a reinstalled %keep can never serve /index revision 1 again
+  //  and every reader of that golden's clones parks forever. a golden stays
+  //  clean because up() waits for the shared port before cloning.
+  //
   //  %rogue is a test agent and is deliberately NOT in desk.bill, so nothing
   //  starts it on install. C3 needs it running on the peer.
   try { await h.dojo(m, '|rein %keep [& %keep] [& %rogue]'); console.log('  rogue started'); }

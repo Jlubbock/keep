@@ -54,8 +54,11 @@
 ::
 ::  ---- network: poke %keep-gossip --------------------------------------------
 ::
+::  addresses are told, never derived: every install of %keep publishes
+::  under a fresh nonce, because gall keeps a nuked agent's revision
+::  counters and a reader that assumed revision 1 would wait forever
 +$  gossip
-  $%  [%announce ~]                  ::  i have %keep installed
+  $%  [%announce =path]              ::  i have %keep installed; my index is here
       [%invite =lyst =path]          ::  here is your address for my list
       ::  sent on an unacked wire: an older %keep nacks them, and a nack
       ::  here must not read as "not running %keep"

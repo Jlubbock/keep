@@ -305,6 +305,7 @@
     ;div.k-row-in
       ;a(href "{(read-url entry.r)}", class "k-title {?~(hed.r "pending" "")}"): {(titled hed.r)}
       ;+  (ship-link (author r) "k-who")
+      ;*  (on-tag r "")
       ;div.k-when: {?~(hed.r "" (day wen.u.hed.r))}
       ;*  (repost-control r back)
     ==
@@ -600,11 +601,43 @@
     ;span.k-tag: {(proof-word `proof.b who)}
   ==
 ::
+::  on our own page the rows can be narrowed to one list; theirs cannot,
+::  because a reader holds a post under one list and never learns the rest
+++  on-list
+  |=  [rows=(list row) l=lyst:keep]
+  ^-  (list row)
+  ?~  rows  ~
+  =/  rest  $(rows t.rows)
+  =/  on=(list lyst:keep)  on.i.rows
+  |-  ^-  (list row)
+  ?~  on  rest
+  ?:  =(l i.on)  [i.rows rest]
+  $(on t.on)
+::
+++  lists-bar
+  |=  [back=tape rows=(list row) pick=(unit lyst:keep)]
+  ^-  manx
+  =/  names=(list lyst:keep)
+    [%public (turn rolls.v |=([l=lyst:keep *] l))]
+  ;div.k-lists-bar
+    ;a(href "{back}", class "{?~(pick "on" "")}"): all · {(a-co:co (lent rows))}
+    ;*  %+  turn  names
+        |=  l=lyst:keep
+        =/  n=@ud  (lent (on-list rows l))
+        ;a(href "{back}?list={(trip l)}", class "{?:(=(`l pick) "on" "")}"): {(aud-name l)} · {(a-co:co n)}
+  ==
+::
 ++  user-page
-  |=  [who=ship rows=(list row) mailed=(map id:keep @da) badges=(list [url=@t badge:ks])]
+  |=  $:  who=ship  rows=(list row)  mailed=(map id:keep @da)
+          badges=(list [url=@t badge:ks])  pick=(unit lyst:keep)
+      ==
   ^-  manx
   =/  back=tape  "/keep/ship/{(pp who)}"
   =/  following  (~(has in follows.v) who)
+  =/  shown=(list row)
+    ?.  =(who our.v)  rows
+    ?~  pick  rows
+    (on-list rows u.pick)
   %+  shell  ?:(=(who our.v) %mine %feed)
   ;div.k-col
     ;div.k-head
@@ -624,8 +657,10 @@
     ==
     ;*  %+  turn  badges
         |=([url=@t b=badge:ks] (badge-line who url b))
+    ;*  ?.  =(who our.v)  ~
+        ~[(lists-bar back rows pick)]
     ;div.k-rows
-      ;*  %+  turn  rows
+      ;*  %+  turn  shown
           |=  r=row
           =/  mw=(unit @da)
             ?~  i=(slaw %uv (crip (id-of entry.r)))  ~

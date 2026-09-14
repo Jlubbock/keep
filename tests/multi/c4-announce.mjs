@@ -18,7 +18,7 @@ const pals = (m, expr) => m.call('mcp/poke-our-agent', { agent: 'pals', mark: 'p
 
 //  |nuke clears state, |rein starts it again — so on-init runs for real
 const reinstall = async (m) => {
-  await h.dojo(m, '|nuke %keep');
+  await h.dojo(m, '|nuke %keep, =hard &');
   await h.dojo(m, '|rein %keep [& %keep] [& %rogue]');
   await h.until('keep to answer again',
     () => h.dojo(m, '.^(* %gx /=keep=/subs/noun)').then(() => true, () => false));

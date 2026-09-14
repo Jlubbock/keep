@@ -1,0 +1,42 @@
+#!/usr/bin/expect -f
+# a golden from nothing: boot the fakeship first (.run -F <name> -c <pier> -d),
+# stop it, then run this against the pier. it installs %mcp and %pals from a
+# known-good golden tree (a bare |new-desk lacks the base marks the sources
+# assume), prints the +code for harness.mjs, and exits. bake.mjs adds %keep.
+#
+# usage: golden.exp <vere> <pier> <name> <source-golden>
+set timeout 600
+set vere [lindex $argv 0]
+set pier [lindex $argv 1]
+set name [lindex $argv 2]
+set src [lindex $argv 3]
+log_user 1
+spawn $vere $pier
+expect -re "~$name:dojo> "
+proc dojo {cmd name} {
+  send "$cmd\r"
+  expect -re "~$name:dojo> "
+}
+dojo "|new-desk %mcp" $name
+dojo "|mount %mcp" $name
+sleep 3
+exec sh -c "cp -R $src/mcp/ $pier/mcp/"
+dojo "|commit %mcp" $name
+sleep 5
+dojo "|install our %mcp" $name
+sleep 5
+dojo "|new-desk %pals" $name
+dojo "|mount %pals" $name
+sleep 3
+exec sh -c "cp -R $src/pals/ $pier/pals/"
+dojo "|commit %pals" $name
+sleep 5
+dojo "|install our %pals" $name
+sleep 5
+send "+code\r"
+expect -re "(\[a-z\]{6}-\[a-z\]{6}-\[a-z\]{6}-\[a-z\]{6})"
+set code $expect_out(1,string)
+expect -re "~$name:dojo> "
+send "|exit\r"
+expect eof
+puts "\nCODE $name $code"
